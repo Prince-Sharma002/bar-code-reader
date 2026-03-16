@@ -14,6 +14,7 @@ const FORMAT_ICONS = {
   PDF_417: '▦',
   AZTEC: '◈',
   DATA_MATRIX: '▪',
+  ITF_14: '≣',
 };
 
 // Map formats to color accents
@@ -28,6 +29,7 @@ const FORMAT_COLORS = {
   PDF_417: '#FBBF24',
   AZTEC: '#FB923C',
   DATA_MATRIX: '#60A5FA',
+  ITF_14: '#94A3B8',
 };
 
 /**

@@ -7,10 +7,8 @@ import {
   Animated,
   Vibration,
   Alert,
-  Linking,
 } from 'react-native';
 // SDK 54: Use CameraView + useCameraPermissions from expo-camera
-// expo-barcode-scanner is DEPRECATED in SDK 54
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { storeScan } from '../services/apiService';
 
@@ -31,12 +29,13 @@ const BARCODE_TYPES = [
 ];
 
 const ScannerScreen = () => {
-  // SDK 54 permission hook — cleaner than the old requestPermissionsAsync pattern
+  // SDK 54 permission hook
   const [permission, requestPermission] = useCameraPermissions();
 
   const [scanned, setScanned] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [torch, setTorch] = useState(false); // Flashlight state
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -65,7 +64,6 @@ const ScannerScreen = () => {
 
   /**
    * Called by CameraView when a barcode enters the viewfinder.
-   * The `scanned` flag prevents duplicate triggers while paused.
    */
   const handleBarcodeScanned = async ({ type, data }) => {
     if (scanned) return;
@@ -89,7 +87,7 @@ const ScannerScreen = () => {
     } catch {
       Alert.alert(
         '⚠️ Save Failed',
-        'Scan detected but not saved to server.\n\nMake sure:\n• Backend is running (npm run dev)\n• IP address in apiService.js is correct (run ipconfig to find it)',
+        'Scan detected but not saved to server.',
         [{ text: 'OK' }]
       );
     } finally {
@@ -123,30 +121,17 @@ const ScannerScreen = () => {
     slideAnim.setValue(40);
   };
 
-  // ── Permission not yet determined ──
-  if (!permission) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.statusText}>📷 Loading camera...</Text>
-      </View>
-    );
-  }
+  // --- Permission Handlers ---
+  if (!permission) return <View style={styles.centered}><Text style={styles.statusText}>📷 Loading camera...</Text></View>;
 
-  // ── Permission denied ──
   if (!permission.granted) {
     return (
       <View style={styles.centered}>
         <Text style={styles.bigEmoji}>🚫</Text>
         <Text style={styles.errorTitle}>Camera Access Required</Text>
-        <Text style={styles.statusText}>
-          Camera permission is needed to scan barcodes.
-        </Text>
+        <Text style={styles.statusText}>Permission is needed to scan barcodes.</Text>
         <TouchableOpacity style={styles.permissionBtn} onPress={requestPermission}>
           <Text style={styles.permissionBtnText}>Grant Permission</Text>
-        </TouchableOpacity>
-        {/* In case user denied permanently */}
-        <TouchableOpacity onPress={() => Linking.openSettings()}>
-          <Text style={styles.settingsLink}>Open Device Settings</Text>
         </TouchableOpacity>
       </View>
     );
@@ -154,34 +139,41 @@ const ScannerScreen = () => {
 
   return (
     <View style={styles.container}>
-
-      {/* ── Top Header ── */}
+      {/* Top Header with Torch Toggle */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📷 Barcode Scanner</Text>
-        <Text style={styles.headerSub}>
-          {scanned ? 'Scan complete!' : 'Align barcode within the frame'}
-        </Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>📷 Scanner</Text>
+            <Text style={styles.headerSub}>Point at any barcode</Text>
+          </View>
+          
+          <TouchableOpacity 
+            style={[styles.torchBtn, torch && styles.torchBtnActive]} 
+            onPress={() => setTorch(!torch)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.torchIcon}>{torch ? '🔦' : '🕯️'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* ── Camera Viewfinder ── */}
+      {/* Camera Viewfinder */}
       <View style={styles.cameraWrap}>
         <CameraView
           style={styles.camera}
           facing="back"
-          // Pass undefined when scanned to pause scanning
+          enableTorch={torch}
           onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
           barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
         >
-          {/* Semi-transparent overlay with scan frame cutout */}
+          {/* Overlay with Cutout effect */}
           <View style={styles.overlay}>
             <View style={styles.scanFrame}>
-              {/* Cyan corner brackets */}
               <View style={[styles.corner, styles.tl]} />
               <View style={[styles.corner, styles.tr]} />
               <View style={[styles.corner, styles.bl]} />
               <View style={[styles.corner, styles.br]} />
 
-              {/* Animated laser line — only when not scanned */}
               {!scanned && (
                 <Animated.View
                   style={[
@@ -191,7 +183,6 @@ const ScannerScreen = () => {
                 />
               )}
 
-              {/* Success overlay when scan completes */}
               {scanned && (
                 <View style={styles.successOverlay}>
                   <Text style={styles.successCheck}>✓</Text>
@@ -202,15 +193,14 @@ const ScannerScreen = () => {
         </CameraView>
       </View>
 
-      {/* ── Scan Result Panel ── */}
-      {scanResult ? (
+      {/* Scan Result Panel */}
+      {scanResult && (
         <Animated.View
           style={[
             styles.resultPanel,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
-          {/* Format + Save status row */}
           <View style={styles.resultRow}>
             <Text style={styles.resultBigIcon}>🎯</Text>
             <View style={{ flex: 1 }}>
@@ -224,7 +214,6 @@ const ScannerScreen = () => {
             </View>
           </View>
 
-          {/* Barcode value display */}
           <View style={styles.valueBox}>
             <Text style={styles.metaLabel}>Scanned Value</Text>
             <Text style={styles.valueText} selectable numberOfLines={4}>
@@ -232,16 +221,10 @@ const ScannerScreen = () => {
             </Text>
           </View>
 
-          {/* Reset button */}
           <TouchableOpacity style={styles.scanAgainBtn} onPress={handleScanAgain}>
             <Text style={styles.scanAgainText}>📷  Scan Another</Text>
           </TouchableOpacity>
         </Animated.View>
-      ) : (
-        <View style={styles.hintsBox}>
-          <Text style={styles.hintsTitle}>Supported Formats</Text>
-          <Text style={styles.hintsText}>QR Code • EAN-13 • EAN-8 • Code 128 • Code 39 • UPC-A • UPC-E • PDF-417 • Aztec</Text>
-        </View>
       )}
     </View>
   );
@@ -250,220 +233,59 @@ const ScannerScreen = () => {
 const FRAME = 230;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-  },
-
-  centered: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
+  container: { flex: 1, backgroundColor: '#0A0A0A' },
+  centered: { flex: 1, backgroundColor: '#0A0A0A', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  
+  header: { paddingTop: 58, paddingHorizontal: 24, paddingBottom: 14 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+  headerSub: { fontSize: 13, color: '#555', marginTop: 4 },
+  
+  torchBtn: {
+    backgroundColor: '#1A1A1A',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 32,
-    gap: 14,
-  },
-
-  // ── Header
-  header: {
-    paddingTop: 58,
-    paddingHorizontal: 24,
-    paddingBottom: 14,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  headerSub: {
-    fontSize: 13,
-    color: '#555',
-    marginTop: 4,
-  },
-
-  // ── Camera
-  cameraWrap: {
-    marginHorizontal: 16,
-    borderRadius: 22,
-    overflow: 'hidden',
-    height: 370,
     borderWidth: 1,
-    borderColor: '#1E1E1E',
+    borderColor: '#333',
   },
+  torchBtnActive: { borderColor: '#00E5FF', backgroundColor: '#00E5FF20' },
+  torchIcon: { fontSize: 22 },
+
+  cameraWrap: { marginHorizontal: 16, borderRadius: 22, overflow: 'hidden', height: 380, borderWidth: 1, borderColor: '#1E1E1E' },
   camera: { flex: 1 },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.52)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  scanFrame: {
-    width: FRAME,
-    height: FRAME,
-    overflow: 'hidden',
-  },
-
-  // Cyan corner brackets
-  corner: {
-    position: 'absolute',
-    width: 26,
-    height: 26,
-    borderColor: '#00E5FF',
-    borderWidth: 3,
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  scanFrame: { width: FRAME, height: FRAME, overflow: 'hidden' },
+  
+  corner: { position: 'absolute', width: 26, height: 26, borderColor: '#00E5FF', borderWidth: 3 },
   tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
   tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
   bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
   br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
+  
+  scanLine: { position: 'absolute', left: 4, right: 4, height: 2, backgroundColor: '#00E5FF', shadowColor: '#00E5FF', shadowOpacity: 1, shadowRadius: 10 },
+  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,229,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  successCheck: { fontSize: 72, color: '#00E5FF' },
 
-  // Laser line
-  scanLine: {
-    position: 'absolute',
-    left: 6,
-    right: 6,
-    height: 2,
-    backgroundColor: '#00E5FF',
-    borderRadius: 2,
-    shadowColor: '#00E5FF',
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-
-  successOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,229,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  successCheck: {
-    fontSize: 72,
-    color: '#00E5FF',
-  },
-
-  // ── Result Panel
-  resultPanel: {
-    margin: 16,
-    backgroundColor: '#141414',
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#222',
-    gap: 12,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  resultPanel: { margin: 16, backgroundColor: '#141414', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#222' },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   resultBigIcon: { fontSize: 28 },
-  metaLabel: {
-    fontSize: 10,
-    color: '#555',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  formatText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#00E5FF',
-  },
-  saveBadge: {
-    backgroundColor: '#1A1A1A',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-  },
+  metaLabel: { fontSize: 10, color: '#555', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
+  formatText: { fontSize: 15, fontWeight: '700', color: '#00E5FF' },
+  saveBadge: { backgroundColor: '#1A1A1A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#2A2A2A' },
   saveBadgeText: { fontSize: 11, color: '#AAA' },
-
-  valueBox: {
-    backgroundColor: '#0F0F0F',
-    borderRadius: 12,
-    padding: 14,
-  },
-  valueText: {
-    fontSize: 16,
-    color: '#FFF',
-    fontWeight: '500',
-    lineHeight: 24,
-    marginTop: 4,
-  },
-
-  scanAgainBtn: {
-    backgroundColor: '#00E5FF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  scanAgainText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0A0A0A',
-    letterSpacing: 0.3,
-  },
-
-  // ── Hints (shown before first scan)
-  hintsBox: {
-    margin: 16,
-    backgroundColor: '#111',
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#1E1E1E',
-  },
-  hintsTitle: {
-    fontSize: 12,
-    color: '#444',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  hintsText: {
-    fontSize: 13,
-    color: '#333',
-    lineHeight: 20,
-  },
-
-  // ── Permission screen
+  valueBox: { backgroundColor: '#0F0F0F', borderRadius: 12, padding: 14, marginTop: 12 },
+  valueText: { fontSize: 16, color: '#FFF', fontWeight: '500', lineHeight: 24 },
+  scanAgainBtn: { backgroundColor: '#00E5FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  scanAgainText: { fontSize: 15, fontWeight: '700', color: '#0A0A0A' },
+  
+  statusText: { color: '#777', fontSize: 14, textAlign: 'center' },
   bigEmoji: { fontSize: 50 },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFF',
-    textAlign: 'center',
-  },
-  statusText: {
-    color: '#777',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  permissionBtn: {
-    marginTop: 4,
-    backgroundColor: '#00E5FF',
-    paddingHorizontal: 28,
-    paddingVertical: 13,
-    borderRadius: 14,
-  },
-  permissionBtnText: {
-    color: '#0A0A0A',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  settingsLink: {
-    color: '#444',
-    fontSize: 13,
-    marginTop: 8,
-    textDecorationLine: 'underline',
-  },
+  errorTitle: { fontSize: 20, fontWeight: '700', color: '#FFF' },
+  permissionBtn: { marginTop: 14, backgroundColor: '#00E5FF', paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
+  permissionBtnText: { color: '#0A0A0A', fontWeight: '700' },
 });
 
 export default ScannerScreen;
