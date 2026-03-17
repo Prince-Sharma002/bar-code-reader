@@ -4,7 +4,7 @@ import axios from 'axios';
 // Run `ipconfig` on Windows or `ifconfig` on Mac/Linux to find your IP
 // Example: 'http://192.168.1.100:5000/api'
 // For Android Emulator use: 'http://10.0.2.2:5000/api'
-const BASE_URL = 'http://192.168.1.100:5000/api';
+const BASE_URL = 'http://192.168.1.14:5000/api';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
