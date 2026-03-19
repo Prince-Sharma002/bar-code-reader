@@ -17,6 +17,12 @@ const scanSchema = new mongoose.Schema({
     type: String,
     default: 'Unknown',
   },
+  latitude: {
+    type: Number,
+  },
+  longitude: {
+    type: Number,
+  },
 });
 
 module.exports = mongoose.model('Scan', scanSchema);

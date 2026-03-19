@@ -1,49 +1,79 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️ IMPORTANT: Change this IP to your computer's local IP address
-// Run `ipconfig` on Windows or `ifconfig` on Mac/Linux to find your IP
-// Example: 'http://192.168.1.100:5000/api'
-// For Android Emulator use: 'http://10.0.2.2:5000/api'
-const BASE_URL = 'http://192.168.1.14:5000/api';
+// ⚠️ CHANGE THIS to your Render URL after deployment
+// Example: 'https://barcode-reader-api.onrender.com/api'
+const BASE_URL = 'http://192.168.1.3:5000/api';
+const STORAGE_KEY = '@scans_history';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 8000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 /**
- * Sends a newly scanned barcode to the backend for storage.
- * @param {string} barcodeValue - The raw value of the scanned barcode.
- * @param {string} format - The barcode format (e.g., QR_CODE, EAN_13).
- * @param {string} deviceId - Optional device identifier.
+ * Saves scan to local storage.
  */
-export const storeScan = async (barcodeValue, format, deviceId = 'unknown') => {
+const saveToLocal = async (newScan) => {
   try {
-    const response = await apiClient.post('/scan', {
-      barcodeValue,
-      format,
-      deviceId,
-    });
+    const existing = await AsyncStorage.getItem(STORAGE_KEY);
+    const history = existing ? JSON.parse(existing) : [];
+    const updated = [newScan, ...history].slice(0, 100); // Keep last 100
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (err) {
+    console.error('Local save error:', err);
+  }
+};
+
+/**
+ * Sends scan to backend and updates local sync status.
+ */
+export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null) => {
+  const newScan = {
+    barcodeValue,
+    format,
+    deviceId,
+    latitude,
+    longitude,
+    timestamp: new Date().toISOString(),
+    synced: false,
+  };
+
+  // 1. Save locally first (immediate feedback)
+  await saveToLocal(newScan);
+
+  // 2. Try to sync with backend
+  try {
+    const response = await apiClient.post('/scan', newScan);
     return response.data;
   } catch (error) {
-    console.error('Error storing scan:', error.message);
+    console.warn('Sync failed, scan saved locally only.');
     throw error;
   }
 };
 
 /**
- * Fetches the scan history from the backend.
- * Returns the latest 50 scans sorted by most recent.
+ * Fetches scan history. Tries backend, falls back to local.
  */
-export const getScanHistory = async () => {
+export const getScanHistory = async (params = {}) => {
   try {
-    const response = await apiClient.get('/scan-history');
+    const response = await apiClient.get('/scan-history', { params });
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(response.data));
     return response.data;
   } catch (error) {
-    console.error('Error fetching scan history:', error.message);
-    throw error;
+    console.log('Fetching from local cache...');
+    const existing = await AsyncStorage.getItem(STORAGE_KEY);
+    return existing ? JSON.parse(existing) : [];
   }
+};
+
+/**
+ * Returns the URL for CSV export
+ */
+export const getExportUrl = () => {
+  return `${BASE_URL}/scan-history/export`;
 };

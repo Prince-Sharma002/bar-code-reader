@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 // SDK 54: Use CameraView + useCameraPermissions from expo-camera
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Device from 'expo-device';
+import * as Location from 'expo-location';
+import { Audio } from 'expo-av';
 import { storeScan } from '../services/apiService';
 
 // All barcode formats supported by CameraView in SDK 54
@@ -31,16 +34,26 @@ const BARCODE_TYPES = [
 const ScannerScreen = () => {
   // SDK 54 permission hook
   const [permission, requestPermission] = useCameraPermissions();
+  const [locationPermission, setLocationPermission] = useState(null);
 
   const [scanned, setScanned] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [torch, setTorch] = useState(false); // Flashlight state
+  const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
+
+  // Request location permission on load
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status === 'granted');
+    })();
+  }, []);
 
   // Looping top-to-bottom laser line animation
   useEffect(() => {
@@ -62,6 +75,20 @@ const ScannerScreen = () => {
     return () => loop.stop();
   }, []);
 
+  /** Play a "beep" sound */
+  const playBeep = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/beep.mp3')
+      );
+      await sound.playAsync();
+      // Unload after playing
+      setTimeout(() => sound.unloadAsync(), 1000);
+    } catch (error) {
+      console.log('Error playing beep:', error);
+    }
+  };
+
   /**
    * Called by CameraView when a barcode enters the viewfinder.
    */
@@ -70,9 +97,25 @@ const ScannerScreen = () => {
 
     setScanned(true);
     Vibration.vibrate(80);
+    playBeep();
 
     const format = normalizeFormat(type);
     setScanResult({ value: data, format });
+
+    // Try to get location
+    let latitude = null;
+    let longitude = null;
+    if (locationPermission) {
+      try {
+        const location = await Location.getCurrentPositionAsync({ 
+          accuracy: Location.Accuracy.Balanced 
+        });
+        latitude = location.coords.latitude;
+        longitude = location.coords.longitude;
+      } catch (err) {
+        console.warn('Could not get location:', err);
+      }
+    }
 
     // Slide result panel up
     Animated.parallel([
@@ -82,12 +125,18 @@ const ScannerScreen = () => {
 
     // Persist to backend
     setIsSaving(true);
+    setAlreadyScannedAlert(false);
+
     try {
-      await storeScan(data, format);
+      const result = await storeScan(data, format, Device.deviceName || 'Unknown Device', latitude, longitude);
+      if (result?.alreadyScanned) {
+        setAlreadyScannedAlert(true);
+      }
     } catch {
+      // Local caching happens inside storeScan before the API call
       Alert.alert(
-        '⚠️ Save Failed',
-        'Scan detected but not saved to server.',
+        '💾 Saved Locally',
+        'Backend unreachable. Your scan is saved on your phone and will appear in history.',
         [{ text: 'OK' }]
       );
     } finally {
@@ -117,6 +166,7 @@ const ScannerScreen = () => {
   const handleScanAgain = () => {
     setScanned(false);
     setScanResult(null);
+    setAlreadyScannedAlert(false);
     fadeAnim.setValue(0);
     slideAnim.setValue(40);
   };
@@ -221,6 +271,12 @@ const ScannerScreen = () => {
             </Text>
           </View>
 
+          {alreadyScannedAlert && (
+            <View style={styles.alreadyScannedBox}>
+              <Text style={styles.alreadyScannedText}>⚠️ This barcode was already scanned recently!</Text>
+            </View>
+          )}
+
           <TouchableOpacity style={styles.scanAgainBtn} onPress={handleScanAgain}>
             <Text style={styles.scanAgainText}>📷  Scan Another</Text>
           </TouchableOpacity>
@@ -280,6 +336,9 @@ const styles = StyleSheet.create({
   valueText: { fontSize: 16, color: '#FFF', fontWeight: '500', lineHeight: 24 },
   scanAgainBtn: { backgroundColor: '#00E5FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
   scanAgainText: { fontSize: 15, fontWeight: '700', color: '#0A0A0A' },
+  
+  alreadyScannedBox: { backgroundColor: '#FFD70020', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#FFD700' },
+  alreadyScannedText: { color: '#FFD700', fontSize: 13, fontWeight: '600', textAlign: 'center' },
   
   statusText: { color: '#777', fontSize: 14, textAlign: 'center' },
   bigEmoji: { fontSize: 50 },
