@@ -12,7 +12,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
-import { Audio } from 'expo-av';
+import { useAudioPlayer } from 'expo-audio';
 import { storeScan } from '../services/apiService';
 
 // All barcode formats supported by CameraView in SDK 54
@@ -41,6 +41,9 @@ const ScannerScreen = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [torch, setTorch] = useState(false); // Flashlight state
   const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
+
+  // Initialize Audio Player
+  const audioPlayer = useAudioPlayer('https://raw.githubusercontent.com/fede-87/bar-code-reader/main/frontend/assets/beep.mp3');
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -76,16 +79,14 @@ const ScannerScreen = () => {
   }, []);
 
   /** Play a "beep" sound */
-  const playBeep = async () => {
+  const playBeep = () => {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/beep.mp3')
-      );
-      await sound.playAsync();
-      // Unload after playing
-      setTimeout(() => sound.unloadAsync(), 1000);
+      if (audioPlayer) {
+        audioPlayer.play();
+      }
     } catch (error) {
       console.log('Error playing beep:', error);
+      Vibration.vibrate(80); // Fallback
     }
   };
 

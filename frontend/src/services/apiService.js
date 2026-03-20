@@ -14,13 +14,15 @@ const apiClient = axios.create({
   },
 });
 
-/**
- * Saves scan to local storage.
- */
 const saveToLocal = async (newScan) => {
   try {
     const existing = await AsyncStorage.getItem(STORAGE_KEY);
-    const history = existing ? JSON.parse(existing) : [];
+    let history = [];
+    if (existing) {
+      const parsed = JSON.parse(existing);
+      // Handle both old array format and accidental object format
+      history = Array.isArray(parsed) ? parsed : (parsed.data || []);
+    }
     const updated = [newScan, ...history].slice(0, 100); // Keep last 100
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     return updated;
@@ -62,12 +64,17 @@ export const storeScan = async (barcodeValue, format, deviceId = 'unknown', lati
 export const getScanHistory = async (params = {}) => {
   try {
     const response = await apiClient.get('/scan-history', { params });
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(response.data));
-    return response.data;
+    // IMPORTANT: Only save the array part to storage
+    const scanArray = response.data.data || [];
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(scanArray));
+    return scanArray;
   } catch (error) {
     console.log('Fetching from local cache...');
     const existing = await AsyncStorage.getItem(STORAGE_KEY);
-    return existing ? JSON.parse(existing) : [];
+    if (!existing) return [];
+    
+    const parsed = JSON.parse(existing);
+    return Array.isArray(parsed) ? parsed : (parsed.data || []);
   }
 };
 

@@ -34,7 +34,8 @@
         {
           "cameraPermission": "Allow Barcode Reader to access your camera to scan barcodes and QR codes."
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }
