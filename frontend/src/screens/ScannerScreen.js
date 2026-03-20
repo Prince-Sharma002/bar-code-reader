@@ -7,6 +7,7 @@ import {
   Animated,
   Vibration,
   Alert,
+  TextInput,
 } from 'react-native';
 // SDK 54: Use CameraView + useCameraPermissions from expo-camera
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -14,6 +15,7 @@ import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import { useState as ReactState } from 'react'; // To avoid conflict if any
 import { storeScan, lookupOrderBarcode } from '../services/apiService';
 
 // All barcode formats supported by CameraView in SDK 54
@@ -40,6 +42,7 @@ const ScannerScreen = () => {
   const [scanned, setScanned] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const [torch, setTorch] = useState(false); // Flashlight state
   const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
   const [foundOrders, setFoundOrders] = useState([]);
@@ -219,6 +222,34 @@ const ScannerScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+      
+      {/* Manual Entry Field */}
+      <View style={styles.manualEntryWrap}>
+        <TextInput
+          style={styles.manualInput}
+          placeholder="Enter barcode manually..."
+          placeholderTextColor="#555"
+          value={manualCode}
+          onChangeText={setManualCode}
+          onSubmitEditing={() => {
+            if (manualCode.trim()) {
+              handleBarcodeScanned({ data: manualCode.trim(), type: 'MANUAL' });
+              setManualCode('');
+            }
+          }}
+        />
+        <TouchableOpacity 
+          style={styles.manualBtn}
+          onPress={() => {
+            if (manualCode.trim()) {
+              handleBarcodeScanned({ data: manualCode.trim(), type: 'MANUAL' });
+              setManualCode('');
+            }
+          }}
+        >
+          <Text style={styles.manualBtnText}>GO</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Camera Viewfinder */}
       <View style={styles.cameraWrap}>
@@ -325,6 +356,41 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: '#555', marginTop: 4 },
+  
+  // Manual Entry Styles
+  manualEntryWrap: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#111',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+    marginBottom: 16
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: '#000',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFF',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#333'
+  },
+  manualBtn: {
+    backgroundColor: '#00E5FF',
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  manualBtnText: {
+    color: '#0A0A0A',
+    fontWeight: '800',
+    fontSize: 13
+  },
   
   torchBtn: {
     backgroundColor: '#1A1A1A',

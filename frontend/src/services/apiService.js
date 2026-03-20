@@ -86,11 +86,13 @@ export const getExportUrl = () => {
 };
 
 // --- Mock Data for Testing ---
+// --- Mock Data for Testing ---
 let MOCK_ORDERS = [
   {
     _id: 'mock_1',
     order_number: 'ORD-2024-001',
     status: 'pending',
+    is_verified: false,
     customer: { name: 'John Doe', phone: '+91 98765 43210', address: '123 Warehouse Lane, Bangalore' },
     items: [
       { sku: 'SHIRT-BLUE-L', name: 'Blue Cotton Shirt (L)', quantity: 2, scanned_count: 0, barcode: '1234567890123' },
@@ -103,6 +105,7 @@ let MOCK_ORDERS = [
     _id: 'mock_2',
     order_number: 'ORD-2024-002',
     status: 'ready_to_ship',
+    is_verified: true,
     customer: { name: 'Jane Smith', phone: '+91 88888 77777', address: '456 Retail Blvd, Mumbai' },
     items: [
       { sku: 'HAT-RED', name: 'Red Baseball Cap', quantity: 1, scanned_count: 1, barcode: '111222333444' }
@@ -114,6 +117,7 @@ let MOCK_ORDERS = [
     _id: 'mock_3',
     order_number: 'ORD-2024-003',
     status: 'pending',
+    is_verified: false,
     customer: { name: 'Bob Wilson', phone: '+91 12345 67890', address: '789 Commercial St, Delhi' },
     items: [
       { sku: 'MUG-WHT', name: 'White Ceramic Mug', quantity: 4, scanned_count: 0, barcode: '555666777888' }
@@ -169,8 +173,9 @@ export const verifyOrderItems = async (id, scannedBarcodes) => {
     return response.data;
   } catch (error) {
     console.log('Mocking verification logic for:', id);
-    const order = MOCK_ORDERS.find(o => o._id === id);
-    if (!order) throw error;
+    const orderIndex = MOCK_ORDERS.findIndex(o => o._id === id);
+    if (orderIndex === -1) throw error;
+    const order = MOCK_ORDERS[orderIndex];
 
     // Simulate verification
     const verification = order.items.map(item => {
@@ -185,6 +190,11 @@ export const verifyOrderItems = async (id, scannedBarcodes) => {
     const verifiedCount = verification.filter(v => v.verified).length;
     const allVerified = verifiedCount === order.items.length;
     const extraScans = scannedBarcodes.filter(b => !order.items.find(i => i.barcode === b));
+
+    // UPDATE MOCK STATE
+    if (allVerified) {
+       MOCK_ORDERS[orderIndex].is_verified = true;
+    }
 
     return {
       ok: true,
@@ -205,6 +215,11 @@ export const updateOrderStatus = async (id, status) => {
     console.log('Mocking status update to:', status);
     const index = MOCK_ORDERS.findIndex(o => o._id === id);
     if (index !== -1) {
+      // PREVENT PACKING WITHOUT VERIFICATION
+      if (status === 'packed' && !MOCK_ORDERS[index].is_verified) {
+         return { ok: false, message: 'Verification required before packing.' };
+      }
+      
       MOCK_ORDERS[index] = { ...MOCK_ORDERS[index], status };
       return { ok: true, order: MOCK_ORDERS[index] };
     }

@@ -50,6 +50,16 @@ const OrderDetailScreen = () => {
       if (resp.ok) {
         setOrder(resp.order);
         Alert.alert('Success', 'Order marked as packed');
+      } else {
+        // Handle unverified case
+        Alert.alert(
+          'Verification Required', 
+          resp.message || 'You must verify all items in this order before marking it as packed.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Verify Now', onPress: () => navigation.navigate('ItemVerification', { orderId: order._id }) }
+          ]
+        );
       }
     } catch(err) {
       Alert.alert('Error', 'Failed to update order status');
@@ -122,12 +132,16 @@ const OrderDetailScreen = () => {
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.packBtn, order.status === 'packed' && styles.disabledBtn]} 
+          style={[
+            styles.packBtn, 
+            order.status === 'packed' && styles.disabledBtn,
+            !order.is_verified && order.status !== 'packed' && styles.unverifiedBtn
+          ]} 
           onPress={handleMarkPacked}
           disabled={order.status === 'packed'}
         >
-          <Text style={styles.packBtnText}>
-            {order.status === 'packed' ? '✅ Packed' : 'Mark as Packed'}
+          <Text style={[styles.packBtnText, !order.is_verified && order.status !== 'packed' && styles.unverifiedBtnText]}>
+            {order.status === 'packed' ? '✅ Packed' : (order.is_verified ? 'Mark as Packed' : 'Verify Items First')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -170,7 +184,9 @@ const styles = StyleSheet.create({
   verifyBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   packBtn: { flex: 1.5, backgroundColor: '#00E5FF', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   packBtnText: { color: '#0A0A0A', fontSize: 15, fontWeight: '700' },
-  disabledBtn: { backgroundColor: '#333', opacity: 0.7 }
+  disabledBtn: { backgroundColor: '#333', opacity: 0.7 },
+  unverifiedBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333' },
+  unverifiedBtnText: { color: '#888' }
 });
 
 export default OrderDetailScreen;

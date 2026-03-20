@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Vibration } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Vibration, TextInput } from 'react-native';
 import { verifyOrderItems, updateOrderStatus, getOrderDetails } from '../services/apiService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -12,6 +12,7 @@ const ItemVerificationScreen = () => {
   const [scannedBarcodes, setScannedBarcodes] = useState([]);
   
   const [isScanning, setIsScanning] = useState(false);
+  const [manualCode, setManualCode] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
   
   const navigation = useNavigation();
@@ -145,6 +146,33 @@ const ItemVerificationScreen = () => {
           >
             <Text style={styles.scanItemBtnText}>📷 Scan Product Barcode</Text>
           </TouchableOpacity>
+          
+          <View style={styles.manualEntryRow}>
+            <TextInput
+              style={styles.manualInput}
+              placeholder="Or enter barcode manually..."
+              placeholderTextColor="#555"
+              value={manualCode}
+              onChangeText={setManualCode}
+              onSubmitEditing={() => {
+                if (manualCode.trim()) {
+                  handleBarcodeScanned({ data: manualCode.trim() });
+                  setManualCode('');
+                }
+              }}
+            />
+            <TouchableOpacity 
+              style={styles.manualGoBtn}
+              onPress={() => {
+                if (manualCode.trim()) {
+                  handleBarcodeScanned({ data: manualCode.trim() });
+                  setManualCode('');
+                }
+              }}
+            >
+              <Text style={styles.manualGoBtnText}>Verify</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Text style={styles.sectionTitle}>Expected Items</Text>
@@ -217,6 +245,12 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 12, marginHorizontal: 4 },
   itemCard: { backgroundColor: '#141414', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#222' },
   itemVerified: { borderColor: '#00E5FF', backgroundColor: '#00E5FF10' },
+  
+  manualEntryRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
+  manualInput: { flex: 1, backgroundColor: '#000', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, color: '#FFF', fontSize: 13, borderWidth: 1, borderColor: '#333' },
+  manualGoBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#00E5FF', paddingHorizontal: 20, borderRadius: 10, justifyContent: 'center' },
+  manualGoBtnText: { color: '#00E5FF', fontWeight: '800', fontSize: 13 },
+
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   itemName: { fontSize: 15, fontWeight: '600', color: '#FFF', flex: 1, marginRight: 8 },
   itemQty: { fontSize: 16, fontWeight: '700', color: '#00E5FF' },
