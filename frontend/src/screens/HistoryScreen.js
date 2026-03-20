@@ -67,11 +67,29 @@ const HistoryScreen = () => {
       if (downloadRes.status === 200) {
         await Sharing.shareAsync(downloadRes.uri);
       } else {
-        Alert.alert('Export Failed', 'Could not download the CSV file.');
+        throw new Error('Download failed');
       }
     } catch (err) {
-      console.error('Export Error:', err);
-      Alert.alert('Error', 'An error occurred while exporting.');
+      console.log('Export Error, falling back to local CSV generation:', err);
+      try {
+        if (scans.length === 0) {
+           Alert.alert('No Data', 'There are no scans to export.');
+           return;
+        }
+
+        // Generate CSV string locally
+        const header = "Date,Barcode,Format,Device\n";
+        const rows = scans.map(s => 
+          `${new Date(s.timestamp).toLocaleString()},${s.barcodeValue},${s.format},${s.deviceId || 'Unknown'}`
+        ).join("\n");
+        const csvContent = header + rows;
+
+        const localUri = FileSystem.cacheDirectory + 'manual_export.csv';
+        await FileSystem.writeAsStringAsync(localUri, csvContent);
+        await Sharing.shareAsync(localUri);
+      } catch (innerErr) {
+        Alert.alert('Export Failed', 'Could not generate CSV file locally.');
+      }
     } finally {
       setIsExporting(false);
     }

@@ -31,9 +31,6 @@ const saveToLocal = async (newScan) => {
   }
 };
 
-/**
- * Sends scan to backend and updates local sync status.
- */
 export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null) => {
   const newScan = {
     barcodeValue,
@@ -45,16 +42,32 @@ export const storeScan = async (barcodeValue, format, deviceId = 'unknown', lati
     synced: false,
   };
 
-  // 1. Save locally first (immediate feedback)
+  // 1. Check for duplicates locally (within last 60 seconds)
+  let alreadyScanned = false;
+  try {
+    const existing = await AsyncStorage.getItem(STORAGE_KEY);
+    if (existing) {
+       const history = JSON.parse(existing);
+       const historyArray = Array.isArray(history) ? history : (history.data || []);
+       // Check if this barcode was scanned in the last minute
+       const recent = historyArray.find(s => 
+          s.barcodeValue === barcodeValue && 
+          (new Date() - new Date(s.timestamp)) < 60000
+       );
+       if (recent) alreadyScanned = true;
+    }
+  } catch (e) {}
+
+  // 2. Save locally first (immediate feedback)
   await saveToLocal(newScan);
 
-  // 2. Try to sync with backend
+  // 3. Try to sync with backend
   try {
     const response = await apiClient.post('/scan', newScan);
-    return response.data;
+    return { ...response.data, alreadyScanned };
   } catch (error) {
     console.warn('Sync failed, scan saved locally only.');
-    throw error;
+    return { ok: true, alreadyScanned }; // Return success with duplicate info even if sync fails
   }
 };
 
