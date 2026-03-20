@@ -84,3 +84,50 @@ export const getScanHistory = async (params = {}) => {
 export const getExportUrl = () => {
   return `${BASE_URL}/scan-history/export`;
 };
+
+// --- Orders API ---
+
+export const lookupOrderBarcode = async (barcode) => {
+  try {
+    const response = await apiClient.get(`/orders/lookup-barcode?code=${barcode}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getOrders = async () => {
+  try {
+    const response = await apiClient.get('/orders');
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getOrderDetails = async (id) => {
+  try {
+    const response = await apiClient.get(`/orders/${id}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const verifyOrderItems = async (id, barcodes) => {
+  try {
+    const response = await apiClient.post(`/orders/${id}/verify-items`, { scanned_barcodes: barcodes });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const updateOrderStatus = async (id, status) => {
+  try {
+    const response = await apiClient.put(`/orders/${id}/status`, { status });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};

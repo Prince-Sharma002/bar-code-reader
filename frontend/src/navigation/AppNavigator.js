@@ -1,10 +1,15 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet } from 'react-native';
 import ScannerScreen from '../screens/ScannerScreen';
 import HistoryScreen from '../screens/HistoryScreen';
+import OrdersListScreen from '../screens/OrdersListScreen';
+import OrderDetailScreen from '../screens/OrderDetailScreen';
+import ItemVerificationScreen from '../screens/ItemVerificationScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 // Emoji-based tab icon component — no external icon library needed
 const TabIcon = ({ focused, emoji, label }) => (
@@ -14,7 +19,7 @@ const TabIcon = ({ focused, emoji, label }) => (
   </View>
 );
 
-const AppNavigator = () => {
+const TabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -33,15 +38,34 @@ const AppNavigator = () => {
         }}
       />
       <Tab.Screen
+        name="Orders"
+        component={OrdersListScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} emoji="📋" label="Orders" />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="History"
         component={HistoryScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} emoji="📋" label="History" />
+            <TabIcon focused={focused} emoji="📜" label="History" />
           ),
         }}
       />
     </Tab.Navigator>
+  );
+};
+
+const AppNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainTabs" component={TabNavigator} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+      <Stack.Screen name="ItemVerification" component={ItemVerificationScreen} />
+    </Stack.Navigator>
   );
 };
 

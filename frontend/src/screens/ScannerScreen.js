@@ -12,8 +12,9 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import * as Location from 'expo-location';
-import { useAudioPlayer } from 'expo-audio';
-import { storeScan } from '../services/apiService';
+import { useNavigation } from '@react-navigation/native';
+import { Audio } from 'expo-av';
+import { storeScan, lookupOrderBarcode } from '../services/apiService';
 
 // All barcode formats supported by CameraView in SDK 54
 const BARCODE_TYPES = [
@@ -41,9 +42,8 @@ const ScannerScreen = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [torch, setTorch] = useState(false); // Flashlight state
   const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
-
-  // Initialize Audio Player
-  const audioPlayer = useAudioPlayer('https://raw.githubusercontent.com/fede-87/bar-code-reader/main/frontend/assets/beep.mp3');
+  const [foundOrders, setFoundOrders] = useState([]);
+  const navigation = useNavigation();
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -79,11 +79,12 @@ const ScannerScreen = () => {
   }, []);
 
   /** Play a "beep" sound */
-  const playBeep = () => {
+  const playBeep = async () => {
     try {
-      if (audioPlayer) {
-        audioPlayer.play();
-      }
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: 'https://raw.githubusercontent.com/fede-87/bar-code-reader/main/frontend/assets/beep.mp3' }
+      );
+      await sound.playAsync();
     } catch (error) {
       console.log('Error playing beep:', error);
       Vibration.vibrate(80); // Fallback
@@ -124,22 +125,32 @@ const ScannerScreen = () => {
       Animated.timing(slideAnim, { toValue: 0, duration: 280, useNativeDriver: true }),
     ]).start();
 
-    // Persist to backend
+    // Persist to backend and try to find order
     setIsSaving(true);
     setAlreadyScannedAlert(false);
+    setFoundOrders([]);
 
     try {
-      const result = await storeScan(data, format, Device.deviceName || 'Unknown Device', latitude, longitude);
-      if (result?.alreadyScanned) {
-        setAlreadyScannedAlert(true);
+      const storeRes = storeScan(data, format, Device.deviceName || 'Unknown Device', latitude, longitude);
+      const lookupRes = lookupOrderBarcode(data);
+      
+      const [result, orderResult] = await Promise.all([storeRes, lookupRes].map(p => p.catch(e => e)));
+      
+      if (result && !result.message?.includes('Network') && !result.message?.includes('failed')) {
+         if (result?.alreadyScanned) {
+            setAlreadyScannedAlert(true);
+         }
       }
+
+      // Check if lookup returned an order
+      if (orderResult && orderResult.ok && orderResult.orders && orderResult.orders.length > 0) {
+        setFoundOrders(orderResult.orders);
+        // Provide haptic feedback for success
+        Vibration.vibrate([100, 100, 100]);
+      }
+      
     } catch {
-      // Local caching happens inside storeScan before the API call
-      Alert.alert(
-        '💾 Saved Locally',
-        'Backend unreachable. Your scan is saved on your phone and will appear in history.',
-        [{ text: 'OK' }]
-      );
+      // Handled individually
     } finally {
       setIsSaving(false);
     }
@@ -168,6 +179,7 @@ const ScannerScreen = () => {
     setScanned(false);
     setScanResult(null);
     setAlreadyScannedAlert(false);
+    setFoundOrders([]);
     fadeAnim.setValue(0);
     slideAnim.setValue(40);
   };
@@ -278,6 +290,22 @@ const ScannerScreen = () => {
             </View>
           )}
 
+          {foundOrders.length > 0 && (
+            <View style={styles.ordersBox}>
+              <Text style={styles.metaLabel}>Matching Orders</Text>
+              {foundOrders.map(order => (
+                <TouchableOpacity 
+                   key={order._id} 
+                   style={styles.orderLinkBtn}
+                   onPress={() => navigation.navigate('OrderDetail', { orderId: order._id })}
+                >
+                  <Text style={styles.orderLinkText}>📦 Order {order.order_number}</Text>
+                  <Text style={styles.orderStatusText}>{order.status}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <TouchableOpacity style={styles.scanAgainBtn} onPress={handleScanAgain}>
             <Text style={styles.scanAgainText}>📷  Scan Another</Text>
           </TouchableOpacity>
@@ -346,6 +374,10 @@ const styles = StyleSheet.create({
   errorTitle: { fontSize: 20, fontWeight: '700', color: '#FFF' },
   permissionBtn: { marginTop: 14, backgroundColor: '#00E5FF', paddingHorizontal: 28, paddingVertical: 13, borderRadius: 14 },
   permissionBtnText: { color: '#0A0A0A', fontWeight: '700' },
+  ordersBox: { marginTop: 16 },
+  orderLinkBtn: { backgroundColor: '#1C1C1E', borderColor: '#444', borderWidth: 1, padding: 12, borderRadius: 10, marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
+  orderLinkText: { color: '#FFF', fontWeight: '700' },
+  orderStatusText: { color: '#00E5FF', fontWeight: '600', textTransform: 'uppercase', fontSize: 12 }
 });
 
 export default ScannerScreen;
