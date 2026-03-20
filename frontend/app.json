@@ -6,7 +6,7 @@
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
@@ -23,7 +23,9 @@
       },
       "permissions": [
         "android.permission.CAMERA"
-      ]
+      ],
+      "package": "com.prince1229.barcodereader",
+      "targetSdkVersion": 34
     },
     "web": {
       "bundler": "metro"
@@ -34,8 +36,7 @@
         {
           "cameraPermission": "Allow Barcode Reader to access your camera to scan barcodes and QR codes."
         }
-      ],
-      "expo-audio"
+      ]
     ]
   }
 }
