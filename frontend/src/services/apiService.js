@@ -137,6 +137,32 @@ let MOCK_ORDERS = [
     ],
     platform: 'WooCommerce',
     created_at: new Date().toISOString()
+  },
+  {
+    _id: 'mock_4',
+    order_number: 'RET-005-BETA',
+    status: 'handed_to_courier',
+    is_verified: true,
+    customer: { name: 'Sarah Miller', phone: '+1555666778', address: '456 Elm St, FL' },
+    items: [
+      { sku: 'SHO-RUN-42', name: 'Running Shoes - Size 42', quantity: 1, scanned_count: 1, barcode: '012345678905' }
+    ],
+    return_tracking_number: 'RET333222111',
+    platform: 'Amazon',
+    created_at: new Date().toISOString()
+  },
+  {
+    _id: 'mock_5',
+    order_number: 'RET-001-ALPHA',
+    status: 'delivered',
+    is_verified: true,
+    customer: { name: 'Bob Wilson', phone: '+1122334455', address: '789 Pine Rd, TX' },
+    items: [
+      { sku: 'TSH-BLU-M', name: 'Blue T-Shirt - Medium', quantity: 1, scanned_count: 1, barcode: '8901234567890' }
+    ],
+    return_tracking_number: 'RET999888777',
+    platform: 'Shopify',
+    created_at: new Date().toISOString()
   }
 ];
 
@@ -150,8 +176,11 @@ export const lookupOrderBarcode = async (barcode) => {
       const item = order.items.find(i => i.barcode === barcode);
       if (item) return { ok: true, type: 'product', data: item, order_id: order._id };
     }
-    const order = MOCK_ORDERS.find(o => o.order_number === barcode);
-    if (order) return { ok: true, type: 'order', data: order };
+    const order = MOCK_ORDERS.find(o => o.order_number === barcode || o.return_tracking_number === barcode);
+    if (order) {
+       const type = order.return_tracking_number === barcode ? 'return' : 'order';
+       return { ok: true, type, orders: [order] };
+    }
     throw error;
   }
 };

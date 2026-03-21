@@ -19,11 +19,12 @@ const orderSchema = new mongoose.Schema({
   items: [orderItemSchema],
   status: {
     type: String,
-    enum: ['pending', 'processing', 'picked', 'packed', 'ready_to_ship', 'handed_to_courier', 'delivered'],
+    enum: ['pending', 'processing', 'picked', 'packed', 'ready_to_ship', 'handed_to_courier', 'delivered', 'returned'],
     default: 'pending'
   },
   platform: { type: String, default: 'Custom' },
   tracking_number: { type: String },
+  return_tracking_number: { type: String },
   awb: { type: String },
   carrier: { type: String },
   total_amount: { type: Number },
@@ -34,6 +35,7 @@ const orderSchema = new mongoose.Schema({
 // Create indexes for fast lookups
 orderSchema.index({ order_number: 1 });
 orderSchema.index({ tracking_number: 1 });
+orderSchema.index({ return_tracking_number: 1 });
 orderSchema.index({ awb: 1 });
 orderSchema.index({ user_id: 1, status: 1 });
 

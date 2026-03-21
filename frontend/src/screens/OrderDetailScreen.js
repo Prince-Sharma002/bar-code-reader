@@ -68,6 +68,23 @@ const OrderDetailScreen = () => {
     }
   };
 
+  const handleMarkReturned = async () => {
+    try {
+      setLoading(true);
+      const resp = await updateOrderStatus(order._id, 'returned');
+      if (resp.ok) {
+        setOrder(resp.order);
+        Alert.alert('Success', 'Order marked as returned');
+      } else {
+        Alert.alert('Error', resp.message || 'Failed to update order status');
+      }
+    } catch(err) {
+      Alert.alert('Error', 'Failed to update order status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading && !order) {
     return (
       <View style={styles.centered}>
@@ -134,16 +151,25 @@ const OrderDetailScreen = () => {
         <TouchableOpacity 
           style={[
             styles.packBtn, 
-            order.status === 'packed' && styles.disabledBtn,
-            !order.is_verified && order.status !== 'packed' && styles.unverifiedBtn
+            ['packed', 'ready_to_ship', 'handed_to_courier', 'delivered', 'returned'].includes(order.status) && styles.disabledBtn,
+            !order.is_verified && order.status === 'pending' && styles.unverifiedBtn
           ]} 
           onPress={handleMarkPacked}
-          disabled={order.status === 'packed'}
+          disabled={['packed', 'ready_to_ship', 'handed_to_courier', 'delivered', 'returned'].includes(order.status)}
         >
-          <Text style={[styles.packBtnText, !order.is_verified && order.status !== 'packed' && styles.unverifiedBtnText]}>
-            {order.status === 'packed' ? '✅ Packed' : (order.is_verified ? 'Mark as Packed' : 'Verify Items First')}
+          <Text style={[styles.packBtnText, !order.is_verified && order.status === 'pending' && styles.unverifiedBtnText]}>
+            {order.status === 'pending' ? (order.is_verified ? 'Mark as Packed' : 'Verify Items First') : `✅ ${order.status.replace('_', ' ').toUpperCase()}`}
           </Text>
         </TouchableOpacity>
+        
+        {order.status === 'delivered' && (
+          <TouchableOpacity 
+            style={styles.returnBtn}
+            onPress={handleMarkReturned}
+          >
+            <Text style={styles.returnBtnText}>🔄 Mark Returned</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -186,7 +212,9 @@ const styles = StyleSheet.create({
   packBtnText: { color: '#0A0A0A', fontSize: 15, fontWeight: '700' },
   disabledBtn: { backgroundColor: '#333', opacity: 0.7 },
   unverifiedBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#333' },
-  unverifiedBtnText: { color: '#888' }
+  unverifiedBtnText: { color: '#888' },
+  returnBtn: { backgroundColor: '#FF9800', paddingVertical: 14, borderRadius: 12, alignItems: 'center', flex: 1 },
+  returnBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' }
 });
 
 export default OrderDetailScreen;

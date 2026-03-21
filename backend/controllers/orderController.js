@@ -28,8 +28,22 @@ exports.lookupBarcode = async (req, res) => {
     if (!result || result.length === 0) {
       result = await Order.find({ user_id: userId, awb: code });
     }
+    
+    // 4. Try return_tracking_number
+    if (!result || result.length === 0) {
+       result = await Order.find({ user_id: userId, return_tracking_number: code });
+    }
 
-    // 4. Try product barcode
+    let type = 'order';
+    if (result && result.length > 0) {
+      orders = result;
+      // Check if it was found via return_tracking_number
+      if (orders.some(o => o.return_tracking_number === code)) {
+        type = 'return';
+      }
+    }
+    
+    // 5. Try product barcode
     if (!result || result.length === 0) {
       const products = await Product.find({
         user_id: userId,
@@ -46,17 +60,19 @@ exports.lookupBarcode = async (req, res) => {
           'items.sku': { $in: skus },
           status: { $in: ['pending', 'processing', 'picked', 'packed'] }
         }).sort({ created_at: -1 }).limit(10);
+        
+        if (result && result.length > 0) {
+          orders = result;
+          type = 'product';
+        }
       }
-    }
-
-    if (result && result.length > 0) {
-      orders = result;
     }
 
     return res.json({
       ok: true,
       orders,
-      barcode: code
+      barcode: code,
+      type
     });
 
   } catch (error) {
@@ -184,7 +200,7 @@ exports.updateStatus = async (req, res) => {
     const orderId = req.params.id;
     const { status } = req.body;
 
-    const validStatuses = ['pending', 'processing', 'picked', 'packed', 'ready_to_ship', 'handed_to_courier', 'delivered'];
+    const validStatuses = ['pending', 'processing', 'picked', 'packed', 'ready_to_ship', 'handed_to_courier', 'delivered', 'returned'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ ok: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
     }

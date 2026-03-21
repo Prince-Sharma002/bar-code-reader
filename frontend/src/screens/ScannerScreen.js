@@ -46,6 +46,7 @@ const ScannerScreen = () => {
   const [torch, setTorch] = useState(false); // Flashlight state
   const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
   const [foundOrders, setFoundOrders] = useState([]);
+  const [scanType, setScanType] = useState('scan'); // 'scan', 'product', 'order', 'return'
   const navigation = useNavigation();
 
   // Animation refs
@@ -148,8 +149,17 @@ const ScannerScreen = () => {
       // Check if lookup returned an order
       if (orderResult && orderResult.ok && orderResult.orders && orderResult.orders.length > 0) {
         setFoundOrders(orderResult.orders);
+        setScanType(orderResult.type || 'order');
+        
         // Provide haptic feedback for success
         Vibration.vibrate([100, 100, 100]);
+        
+        // If it's a return, maybe we show a specific alert or play a different sound
+        if (orderResult.type === 'return') {
+           // We can add a custom sound for return if we want
+        }
+      } else {
+        setScanType('scan');
       }
       
     } catch {
@@ -296,28 +306,32 @@ const ScannerScreen = () => {
           ]}
         >
           <View style={styles.resultRow}>
-            <Text style={styles.resultBigIcon}>🎯</Text>
+            <Text style={styles.resultBigIcon}>
+               {scanType === 'return' ? '📦🔄' : scanType === 'product' ? '🍱' : '🎯'}
+            </Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.metaLabel}>Format</Text>
-              <Text style={styles.formatText}>{scanResult.format}</Text>
+              <Text style={styles.metaLabel}>{scanType === 'return' ? 'RETURN LABEL' : 'Format'}</Text>
+              <Text style={[styles.formatText, scanType === 'return' && { color: '#FF9800' }]}>
+                 {scanType === 'return' ? 'Return Shipment Found' : scanResult.format}
+              </Text>
             </View>
-            <View style={styles.saveBadge}>
-              <Text style={styles.saveBadgeText}>
-                {isSaving ? '⏳ Saving…' : '✅ Saved'}
+            <View style={[styles.saveBadge, scanType === 'return' && { borderColor: '#FF9800' }]}>
+              <Text style={[styles.saveBadgeText, scanType === 'return' && { color: '#FF9800' }]}>
+                {isSaving ? '⏳ Processing…' : (scanType === 'return' ? '✅ Identified' : '✅ Saved')}
               </Text>
             </View>
           </View>
 
           <View style={styles.valueBox}>
-            <Text style={styles.metaLabel}>Scanned Value</Text>
-            <Text style={styles.valueText} selectable numberOfLines={4}>
+            <Text style={styles.metaLabel}>{scanType === 'return' ? 'Return Tracking' : 'Scanned Value'}</Text>
+            <Text style={[styles.valueText, scanType === 'return' && { color: '#FF9800' }]} selectable numberOfLines={4}>
               {scanResult.value}
             </Text>
           </View>
 
-          {alreadyScannedAlert && (
-            <View style={styles.alreadyScannedBox}>
-              <Text style={styles.alreadyScannedText}>⚠️ This barcode was already scanned recently!</Text>
+          {scanType === 'return' && (
+            <View style={styles.returnAlertBox}>
+              <Text style={styles.returnAlertText}>This order is being returned. Click below to view details and mark as received.</Text>
             </View>
           )}
 
@@ -434,6 +448,9 @@ const styles = StyleSheet.create({
   
   alreadyScannedBox: { backgroundColor: '#FFD70020', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#FFD700' },
   alreadyScannedText: { color: '#FFD700', fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  
+  returnAlertBox: { backgroundColor: '#FF980020', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#FF9800' },
+  returnAlertText: { color: '#FF9800', fontSize: 13, fontWeight: '600', textAlign: 'center' },
   
   statusText: { color: '#777', fontSize: 14, textAlign: 'center' },
   bigEmoji: { fontSize: 50 },

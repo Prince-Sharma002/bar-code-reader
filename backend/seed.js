@@ -39,6 +39,32 @@ const mockOrders = [
     tracking_number: 'TRK987654321',
     awb: 'B987654321',
     total_amount: 33.99
+  },
+  {
+    order_number: 'RET-001-ALPHA',
+    customer: { name: 'Bob Wilson', phone: '+1122334455', address: '789 Pine Rd, TX' },
+    items: [
+      { sku: 'TSH-BLU-M', name: 'Blue T-Shirt - Medium', quantity: 1, price: 15.99 }
+    ],
+    status: 'delivered',
+    platform: 'Shopify',
+    tracking_number: 'SHIP777888',
+    return_tracking_number: 'RET999888777',
+    awb: 'A777888999',
+    total_amount: 15.99
+  },
+  {
+    order_number: 'RET-005-BETA',
+    customer: { name: 'Sarah Miller', phone: '+1555666778', address: '456 Elm St, FL' },
+    items: [
+      { sku: 'SHO-RUN-42', name: 'Running Shoes - Size 42', quantity: 1, price: 45.00 }
+    ],
+    status: 'handed_to_courier',
+    platform: 'Amazon',
+    tracking_number: 'OUT999333',
+    return_tracking_number: 'RET333222111',
+    awb: 'A999333111',
+    total_amount: 45.00
   }
 ];
 
