@@ -28,7 +28,12 @@
       "targetSdkVersion": 34
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "description": "Premium Barcode & QR Scanner for Inventory Management",
+      "backgroundColor": "#0A0A0A",
+      "themeColor": "#00E5FF",
+      "display": "standalone",
+      "startUrl": "/"
     },
     "plugins": [
       [

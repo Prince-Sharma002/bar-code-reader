@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ CHANGE THIS to your Render URL after deployment
 // Example: 'https://barcode-reader-api.onrender.com/api'
-const BASE_URL = 'http://192.168.1.3:5000/api';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:5000/api';
 const STORAGE_KEY = '@scans_history';
 
 const apiClient = axios.create({
