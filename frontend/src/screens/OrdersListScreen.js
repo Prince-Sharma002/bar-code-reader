@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { getOrders } from '../services/apiService';
 import { useNavigation } from '@react-navigation/native';
+import Colors from '../constants/Colors';
 
 const STATUS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -63,9 +64,10 @@ const OrdersListScreen = () => {
   }, [orders, searchQuery, activeStatus]);
 
   const renderItem = ({ item }) => {
-    const statusColor = item.status === 'packed' || item.status === 'ready_to_ship' ? '#00E5FF' :
-      item.status === 'pending' ? '#FFD700' : 
-      item.status === 'delivered' ? '#4CAF50' : '#888';
+    const statusColor = item.status === 'packed' || item.status === 'ready_to_ship' ? Colors.order :
+      item.status === 'pending' ? Colors.duplicate : 
+      item.status === 'delivered' ? Colors.order : 
+      item.status === 'returned' || item.status === 'processing' ? Colors.return : '#888';
 
     return (
       <TouchableOpacity 
@@ -133,13 +135,13 @@ const OrdersListScreen = () => {
               key={filter.value}
               style={[
                 styles.filterChip,
-                activeStatus === filter.value && styles.activeFilterChip
+                activeStatus === filter.value && { backgroundColor: Colors.primary, borderColor: Colors.primary }
               ]}
               onPress={() => setActiveStatus(filter.value)}
             >
               <Text style={[
                 styles.filterText,
-                activeStatus === filter.value && styles.activeFilterText
+                activeStatus === filter.value && { color: '#000' }
               ]}>
                 {filter.label}
               </Text>

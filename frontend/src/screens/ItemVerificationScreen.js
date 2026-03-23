@@ -4,6 +4,7 @@ import { verifyOrderItems, updateOrderStatus, getOrderDetails } from '../service
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
+import Colors from '../constants/Colors';
 
 const ItemVerificationScreen = () => {
   const [loading, setLoading] = useState(true);
@@ -232,39 +233,39 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#222'
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-  backEmoji: { fontSize: 24, color: '#00E5FF' },
+  backEmoji: { fontSize: 24, color: Colors.primary },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   scrollContent: { padding: 16, paddingBottom: 100 },
   summaryCard: { backgroundColor: '#141414', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#222', marginBottom: 20 },
   orderLabel: { fontSize: 14, color: '#888', marginBottom: 8, fontWeight: '600' },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   progressText: { fontSize: 24, fontWeight: '800', color: '#FFF' },
-  allDoneBadge: { backgroundColor: '#00E5FF20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden', color: '#00E5FF', fontWeight: '800' },
-  scanItemBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#00E5FF', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  scanItemBtnText: { color: '#00E5FF', fontSize: 15, fontWeight: '700' },
+  allDoneBadge: { backgroundColor: Colors.order + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden', color: Colors.order, fontWeight: '800', borderWidth: 1, borderColor: Colors.order + '40' },
+  scanItemBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: Colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  scanItemBtnText: { color: Colors.primary, fontSize: 15, fontWeight: '700' },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 12, marginHorizontal: 4 },
   itemCard: { backgroundColor: '#141414', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#222' },
-  itemVerified: { borderColor: '#00E5FF', backgroundColor: '#00E5FF10' },
+  itemVerified: { borderColor: Colors.order, backgroundColor: Colors.order + '10' },
   
   manualEntryRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
   manualInput: { flex: 1, backgroundColor: '#000', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, color: '#FFF', fontSize: 13, borderWidth: 1, borderColor: '#333' },
-  manualGoBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#00E5FF', paddingHorizontal: 20, borderRadius: 10, justifyContent: 'center' },
-  manualGoBtnText: { color: '#00E5FF', fontWeight: '800', fontSize: 13 },
+  manualGoBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: Colors.primary, paddingHorizontal: 20, borderRadius: 10, justifyContent: 'center' },
+  manualGoBtnText: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
 
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   itemName: { fontSize: 15, fontWeight: '600', color: '#FFF', flex: 1, marginRight: 8 },
-  itemQty: { fontSize: 16, fontWeight: '700', color: '#00E5FF' },
+  itemQty: { fontSize: 16, fontWeight: '700', color: Colors.primary },
   itemSku: { fontSize: 12, color: '#888', marginBottom: 12 },
   statusRow: { borderTopWidth: 1, borderTopColor: '#222', paddingTop: 10 },
-  verifiedText: { color: '#00E5FF', fontWeight: '700', fontSize: 13 },
+  verifiedText: { color: Colors.order, fontWeight: '700', fontSize: 13 },
   pendingText: { color: '#888', fontWeight: '700', fontSize: 13 },
-  errorCard: { backgroundColor: '#2b1010', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#ff4444' },
-  errorText: { color: '#ff4444', fontWeight: 'bold' },
+  errorCard: { backgroundColor: Colors.error + '10', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.error },
+  errorText: { color: Colors.error, fontWeight: 'bold' },
   
   // Camera overlay
   scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
   scanInstructions: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 40 },
-  targetBox: { width: 250, height: 150, borderWidth: 2, borderColor: '#00E5FF', borderRadius: 12 },
+  targetBox: { width: 250, height: 150, borderWidth: 2, borderColor: Colors.primary, borderRadius: 12 },
   cancelBtn: { marginTop: 60, padding: 16, backgroundColor: '#1A1A1A', borderRadius: 12, borderWidth: 1, borderColor: '#333' },
   cancelText: { color: '#FFF', fontWeight: 'bold' },
 
@@ -273,7 +274,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111', padding: 16, borderTopWidth: 1, 
     borderTopColor: '#222', flexDirection: 'row', gap: 12 
   },
-  packBtn: { flex: 1, backgroundColor: '#00E5FF', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  packBtn: { flex: 1, backgroundColor: Colors.order, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   packBtnText: { color: '#0A0A0A', fontSize: 15, fontWeight: '700' },
   disabledBtn: { backgroundColor: '#333', opacity: 0.7 }
 });

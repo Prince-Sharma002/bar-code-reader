@@ -16,7 +16,10 @@ import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { useState as ReactState } from 'react'; // To avoid conflict if any
-import { storeScan, lookupOrderBarcode } from '../services/apiService';
+import { storeScan, lookupOrderBarcode, lookupProduct } from '../services/apiService';
+import * as ImagePicker from 'expo-image-picker';
+import { BarCodeScanner } from 'expo-barcode-scanner';
+import Colors from '../constants/Colors';
 
 // All barcode formats supported by CameraView in SDK 54
 const BARCODE_TYPES = [
@@ -46,7 +49,8 @@ const ScannerScreen = () => {
   const [torch, setTorch] = useState(false); // Flashlight state
   const [alreadyScannedAlert, setAlreadyScannedAlert] = useState(false);
   const [foundOrders, setFoundOrders] = useState([]);
-  const [scanType, setScanType] = useState('scan'); // 'scan', 'product', 'order', 'return'
+  const [foundProduct, setFoundProduct] = useState(null);
+  const [scanType, setScanType] = useState('unknown'); // 'unknown', 'product', 'order', 'return'
   const navigation = useNavigation();
 
   // Animation refs
@@ -135,31 +139,41 @@ const ScannerScreen = () => {
     setFoundOrders([]);
 
     try {
-      const storeRes = storeScan(data, format, Device.deviceName || 'Unknown Device', latitude, longitude);
-      const lookupRes = lookupOrderBarcode(data);
+      // 1. Store scan with default 'unknown' first
+      const storeRes = await storeScan(data, format, Device.deviceName || 'Unknown Device', latitude, longitude, 'unknown');
       
-      const [result, orderResult] = await Promise.all([storeRes, lookupRes].map(p => p.catch(e => e)));
-      
-      if (result && !result.message?.includes('Network') && !result.message?.includes('failed')) {
-         if (result?.alreadyScanned) {
-            setAlreadyScannedAlert(true);
-         }
+      if (storeRes?.alreadyScanned) {
+        setAlreadyScannedAlert(true);
       }
 
-      // Check if lookup returned an order
+      // 2. Try to find an order
+      const orderResult = await lookupOrderBarcode(data).catch(() => null);
+      
       if (orderResult && orderResult.ok && orderResult.orders && orderResult.orders.length > 0) {
         setFoundOrders(orderResult.orders);
-        setScanType(orderResult.type || 'order');
+        const type = orderResult.type || 'order';
+        setScanType(type);
         
-        // Provide haptic feedback for success
-        Vibration.vibrate([100, 100, 100]);
-        
-        // If it's a return, maybe we show a specific alert or play a different sound
-        if (orderResult.type === 'return') {
-           // We can add a custom sound for return if we want
+        // Update the scan type in backend now that we know it
+        if (storeRes.data?._id) {
+           // We could add an updateScan api, but for now let's just make sure future scans are accurate
         }
+        
+        Vibration.vibrate([100, 100, 100]);
       } else {
-        setScanType('scan');
+        // 3. Try to find a product if no order matches
+        try {
+          const productResult = await lookupProduct(data);
+          if (productResult && productResult.ok && productResult.product) {
+            setFoundProduct(productResult.product);
+            setScanType('product');
+            Vibration.vibrate([100, 100]);
+          } else {
+            setScanType('unknown');
+          }
+        } catch (err) {
+          setScanType('unknown');
+        }
       }
       
     } catch {
@@ -193,8 +207,87 @@ const ScannerScreen = () => {
     setScanResult(null);
     setAlreadyScannedAlert(false);
     setFoundOrders([]);
+    setFoundProduct(null);
+    setScanType('unknown');
     fadeAnim.setValue(0);
     slideAnim.setValue(40);
+  };
+
+  const handleOpenGallery = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        handleScanAgain(); // Reset previous scan result state before processing new image
+        const uri = result.assets[0].uri;
+        setIsSaving(true);
+        console.log('Picked Image URI:', uri);
+        
+        // WEB SPECIFIC SCANNING (BarCodeScanner.scanFromURLAsync NOT supported on Web)
+        if (require('react-native').Platform.OS === 'web') {
+           try {
+             const { BrowserMultiFormatReader } = require('@zxing/library');
+             const reader = new BrowserMultiFormatReader();
+             
+             // Create an image element to get its source
+             const results = await reader.decodeFromImageUrl(uri);
+             
+             if (results && results.text) {
+                console.log('Web Scan Success:', results.text);
+                const format = results.format ? results.format.toString() : 'UNKNOWN';
+                handleBarcodeScanned({ type: format, data: results.text });
+                return;
+             }
+           } catch (webErr) {
+             console.log('Web Barcode Decoder failed, trying fallback library...', webErr);
+             
+             // TRY jsqr as a fallback for QR specifically if zxing missed it
+             try {
+                const img = new Image();
+                img.src = uri;
+                await new Promise((resolve) => (img.onload = resolve));
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const jsQR = require('jsqr');
+                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+                if (qrCode) {
+                   handleBarcodeScanned({ type: 'qr', data: qrCode.data });
+                   return;
+                }
+             } catch (qrErr) {
+                console.log('Fallback QR Decoder failed:', qrErr);
+             }
+           }
+        }
+        
+        // NATIVE OR FALLBACK (iOS/Android will use BarCodeScanner)
+        try {
+           const results = await BarCodeScanner.scanFromURLAsync(uri);
+           if (results && results.length > 0) {
+              const { type, data } = results[0];
+              handleBarcodeScanned({ type, data });
+           } else {
+              Alert.alert('No Barcode Found', 'Could not find any readable barcode in the selected image. Please try a clearer screenshot.');
+           }
+        } catch (nativeErr) {
+           console.log('Native BarCodeScanner failed:', nativeErr);
+           Alert.alert('Scan Failed', 'This device does not support image barcode scanning or the image is unreadable.');
+        }
+      }
+    } catch (error) {
+       console.error('Gallery Picking Error:', error);
+       Alert.alert('Error', 'Failed to scan image from gallery.');
+    } finally {
+       setIsSaving(false);
+    }
   };
 
   // --- Permission Handlers ---
@@ -229,6 +322,14 @@ const ScannerScreen = () => {
             activeOpacity={0.7}
           >
             <Text style={styles.torchIcon}>{torch ? '🔦' : '🕯️'}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.galleryBtn} 
+            onPress={handleOpenGallery}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.torchIcon}>🖼️</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -282,14 +383,18 @@ const ScannerScreen = () => {
                 <Animated.View
                   style={[
                     styles.scanLine,
-                    { transform: [{ translateY: scanLineAnim }] },
+                    { 
+                      backgroundColor: Colors[scanType] || Colors.primary,
+                      shadowColor: Colors[scanType] || Colors.primary,
+                      transform: [{ translateY: scanLineAnim }] 
+                    },
                   ]}
                 />
               )}
 
               {scanned && (
-                <View style={styles.successOverlay}>
-                  <Text style={styles.successCheck}>✓</Text>
+                <View style={[styles.successOverlay, { backgroundColor: (Colors[scanType] || Colors.primary) + '20' }]}>
+                  <Text style={[styles.successCheck, { color: Colors[scanType] || Colors.primary }]}>✓</Text>
                 </View>
               )}
             </View>
@@ -307,24 +412,46 @@ const ScannerScreen = () => {
         >
           <View style={styles.resultRow}>
             <Text style={styles.resultBigIcon}>
-               {scanType === 'return' ? '📦🔄' : scanType === 'product' ? '🍱' : '🎯'}
+               {scanType === 'return' ? '📦🔄' : scanType === 'product' ? '🍱' : scanType === 'order' ? '🎯' : '📄'}
             </Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.metaLabel}>{scanType === 'return' ? 'RETURN LABEL' : 'Format'}</Text>
-              <Text style={[styles.formatText, scanType === 'return' && { color: '#FF9800' }]}>
-                 {scanType === 'return' ? 'Return Shipment Found' : scanResult.format}
+              <Text style={styles.metaLabel}>{scanType === 'return' ? 'RETURN LABEL' : scanType === 'product' ? 'INVENTORY ITEM' : 'Format'}</Text>
+              <Text style={[styles.formatText, { color: Colors[scanType] || Colors.primary }]}>
+                 {scanType === 'return' ? 'Return Shipment Found' : scanType === 'product' ? foundProduct?.name : scanResult.format}
               </Text>
             </View>
-            <View style={[styles.saveBadge, scanType === 'return' && { borderColor: '#FF9800' }]}>
-              <Text style={[styles.saveBadgeText, scanType === 'return' && { color: '#FF9800' }]}>
+            <View style={[styles.saveBadge, { borderColor: (Colors[scanType] || Colors.primary) + '50' }]}>
+              <Text style={[styles.saveBadgeText, { color: Colors[scanType] || Colors.primary }]}>
                 {isSaving ? '⏳ Processing…' : (scanType === 'return' ? '✅ Identified' : '✅ Saved')}
               </Text>
             </View>
           </View>
 
+          {scanType === 'product' && foundProduct && (
+            <View style={styles.productDetailsBox}>
+               {foundProduct.image && (
+                 <View style={styles.productImagePlaceholder}>
+                    <Text style={{ fontSize: 40 }}>📦</Text>
+                 </View>
+               )}
+               <View style={styles.productInfoRow}>
+                  <View>
+                    <Text style={styles.metaLabel}>Price</Text>
+                    <Text style={styles.productPriceText}>₹{foundProduct.price || 0}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.metaLabel}>Current Stock</Text>
+                    <Text style={[styles.productStockText, foundProduct.stock < 5 && { color: '#F44336' }]}>
+                       {foundProduct.stock || 0} units
+                    </Text>
+                  </View>
+               </View>
+            </View>
+          )}
+
           <View style={styles.valueBox}>
             <Text style={styles.metaLabel}>{scanType === 'return' ? 'Return Tracking' : 'Scanned Value'}</Text>
-            <Text style={[styles.valueText, scanType === 'return' && { color: '#FF9800' }]} selectable numberOfLines={4}>
+            <Text style={styles.valueText} selectable numberOfLines={4}>
               {scanResult.value}
             </Text>
           </View>
@@ -351,7 +478,10 @@ const ScannerScreen = () => {
             </View>
           )}
 
-          <TouchableOpacity style={styles.scanAgainBtn} onPress={handleScanAgain}>
+          <TouchableOpacity 
+             style={[styles.scanAgainBtn, { backgroundColor: Colors[scanType] || Colors.primary }]} 
+             onPress={handleScanAgain}
+          >
             <Text style={styles.scanAgainText}>📷  Scan Another</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -417,7 +547,18 @@ const styles = StyleSheet.create({
     borderColor: '#333',
   },
   torchBtnActive: { borderColor: '#00E5FF', backgroundColor: '#00E5FF20' },
-  torchIcon: { fontSize: 22 },
+  galleryBtn: {
+    backgroundColor: '#1A1A1A',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+    marginLeft: 10
+  },
+  torchIcon: { fontSize: 20 },
 
   cameraWrap: { marginHorizontal: 16, borderRadius: 22, overflow: 'hidden', height: 380, borderWidth: 1, borderColor: '#1E1E1E' },
   camera: { flex: 1 },
@@ -430,21 +571,57 @@ const styles = StyleSheet.create({
   bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
   br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
   
-  scanLine: { position: 'absolute', left: 4, right: 4, height: 2, backgroundColor: '#00E5FF', shadowColor: '#00E5FF', shadowOpacity: 1, shadowRadius: 10 },
-  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,229,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  successCheck: { fontSize: 72, color: '#00E5FF' },
+  scanLine: { position: 'absolute', left: 4, right: 4, height: 2, shadowOpacity: 1, shadowRadius: 10 },
+  successOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  successCheck: { fontSize: 72 },
 
-  resultPanel: { margin: 16, backgroundColor: '#141414', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#222' },
+  resultPanel: { margin: 16, backgroundColor: '#141414', borderRadius: 20, padding: 18, borderTopWidth: 4, borderTopColor: '#00E5FF', elevation: 10 },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   resultBigIcon: { fontSize: 28 },
   metaLabel: { fontSize: 10, color: '#555', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  formatText: { fontSize: 15, fontWeight: '700', color: '#00E5FF' },
-  saveBadge: { backgroundColor: '#1A1A1A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#2A2A2A' },
-  saveBadgeText: { fontSize: 11, color: '#AAA' },
+  formatText: { fontSize: 15, fontWeight: '700' },
+  saveBadge: { backgroundColor: '#1A1A1A', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  saveBadgeText: { fontSize: 11 },
+  
+  productDetailsBox: {
+    backgroundColor: '#0F0F0F',
+    borderRadius: 14,
+    padding: 16,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  productImagePlaceholder: {
+    width: '100%',
+    height: 100,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  productInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  productPriceText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFF',
+    marginTop: 4
+  },
+  productStockText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4CAF50',
+    marginTop: 4
+  },
+
   valueBox: { backgroundColor: '#0F0F0F', borderRadius: 12, padding: 14, marginTop: 12 },
   valueText: { fontSize: 16, color: '#FFF', fontWeight: '500', lineHeight: 24 },
-  scanAgainBtn: { backgroundColor: '#00E5FF', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  scanAgainText: { fontSize: 15, fontWeight: '700', color: '#0A0A0A' },
+  scanAgainBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  scanAgainText: { fontSize: 16, fontWeight: '800', color: '#0A0A0A' },
   
   alreadyScannedBox: { backgroundColor: '#FFD70020', borderRadius: 12, padding: 14, marginTop: 12, borderWidth: 1, borderColor: '#FFD700' },
   alreadyScannedText: { color: '#FFD700', fontSize: 13, fontWeight: '600', textAlign: 'center' },

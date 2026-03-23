@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const scanRoutes = require('./routes/scanRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const productRoutes = require('./routes/productRoutes');
 
 // Load env vars
 dotenv.config();
@@ -22,6 +23,7 @@ app.use(cors());
 // Routes
 app.use('/api', scanRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/products', productRoutes);
 
 // Basic route for wellness check
 app.get('/', (req, res) => {

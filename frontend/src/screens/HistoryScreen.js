@@ -9,11 +9,13 @@ import {
   RefreshControl,
   Alert,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { getScanHistory, getExportUrl } from '../services/apiService';
+import { getScanHistory, getExportUrl, deleteScans } from '../services/apiService';
 import ScanHistoryItem from '../components/ScanHistoryItem';
+import Colors from '../constants/Colors';
 
 const HistoryScreen = () => {
   const [scans, setScans] = useState([]);
@@ -22,13 +24,26 @@ const HistoryScreen = () => {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  
+  // Filters
+  const [filterType, setFilterType] = useState('all'); // all, order, return, product, unknown
+  const [showFilters, setShowFilters] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   // Fetch history from backend
   const fetchHistory = useCallback(async (searchQuery = '') => {
     try {
       if (!refreshing) setLoading(true);
       setError(null);
-      const data = await getScanHistory({ search: searchQuery });
+      const params = { search: searchQuery };
+      if (filterType !== 'all') params.type = filterType;
+      if (startDate) params.startDate = startDate.toISOString();
+      if (endDate) params.endDate = endDate.toISOString();
+
+      const data = await getScanHistory(params);
       setScans(data || []);
     } catch (err) {
       setError('Could not connect to the server. Showing local history if available.');
@@ -36,7 +51,7 @@ const HistoryScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshing]);
+  }, [refreshing, filterType, startDate, endDate]);
 
   useEffect(() => {
     fetchHistory();
@@ -57,10 +72,16 @@ const HistoryScreen = () => {
   };
 
   const handleExport = async () => {
+    if (scans.length === 0) {
+      Alert.alert('No Data', 'There are no scans to export.');
+      return;
+    }
+
     setIsExporting(true);
     try {
-      const url = getExportUrl();
-      const fileUri = FileSystem.cacheDirectory + 'scan_history.csv';
+      // If items selected, only export those
+      const url = getExportUrl(selectedIds);
+      const fileUri = FileSystem.cacheDirectory + `scan_history_${Date.now()}.csv`;
       
       const downloadRes = await FileSystem.downloadAsync(url, fileUri);
       
@@ -72,15 +93,14 @@ const HistoryScreen = () => {
     } catch (err) {
       console.log('Export Error, falling back to local CSV generation:', err);
       try {
-        if (scans.length === 0) {
-           Alert.alert('No Data', 'There are no scans to export.');
-           return;
-        }
+        const scansToExport = selectedIds.length > 0 
+          ? scans.filter(s => selectedIds.includes(s._id))
+          : scans;
 
         // Generate CSV string locally
-        const header = "Date,Barcode,Format,Device\n";
-        const rows = scans.map(s => 
-          `${new Date(s.timestamp).toLocaleString()},${s.barcodeValue},${s.format},${s.deviceId || 'Unknown'}`
+        const header = "Date,Barcode,Format,Type,Device\n";
+        const rows = scansToExport.map(s => 
+          `${new Date(s.scannedAt || s.timestamp).toLocaleString()},${s.barcodeValue},${s.format},${s.type || 'unknown'},${s.deviceId || 'Unknown'}`
         ).join("\n");
         const csvContent = header + rows;
 
@@ -95,8 +115,54 @@ const HistoryScreen = () => {
     }
   };
 
+  const handleToggleSelect = (scan) => {
+    const id = scan._id;
+    if (!id) return;
+
+    if (selectedIds.includes(id)) {
+      const updated = selectedIds.filter(sid => sid !== id);
+      setSelectedIds(updated);
+      if (updated.length === 0) setIsSelectionMode(false);
+    } else {
+      setSelectedIds([...selectedIds, id]);
+      setIsSelectionMode(true);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+
+    Alert.alert(
+      'Delete Scans',
+      `Are you sure you want to delete ${selectedIds.length} selected scans?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteScans(selectedIds);
+              setScans(prev => prev.filter(s => !selectedIds.includes(s._id)));
+              setSelectedIds([]);
+              setIsSelectionMode(false);
+            } catch (err) {
+              Alert.alert('Error', 'Failed to delete scans.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderItem = ({ item, index }) => (
-    <ScanHistoryItem scan={item} index={index} />
+    <ScanHistoryItem 
+      scan={item} 
+      index={index} 
+      isSelected={selectedIds.includes(item._id)}
+      isSelectionMode={isSelectionMode}
+      onSelect={handleToggleSelect}
+    />
   );
 
   const renderEmpty = () => (
@@ -120,30 +186,87 @@ const HistoryScreen = () => {
               {scans.length > 0 ? `${scans.length} records found` : 'Pull to refresh'}
             </Text>
           </View>
-          <TouchableOpacity 
-            style={[styles.exportBtn, isExporting && styles.exportBtnDisabled]} 
-            onPress={handleExport}
-            disabled={isExporting}
-          >
-            <Text style={styles.exportBtnText}>{isExporting ? '⏳' : '📥 CSV'}</Text>
-          </TouchableOpacity>
+          
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {isSelectionMode && (
+              <TouchableOpacity 
+                style={styles.selectAllBtn} 
+                onPress={() => {
+                  if (selectedIds.length === scans.length) {
+                    setSelectedIds([]);
+                    setIsSelectionMode(false);
+                  } else {
+                    setSelectedIds(scans.map(s => s._id).filter(id => !!id));
+                  }
+                }}
+              >
+                <Text style={styles.filterBtnText}>{selectedIds.length === scans.length ? '🔘' : '⭕'}</Text>
+              </TouchableOpacity>
+            )}
+
+            {isSelectionMode && (
+              <TouchableOpacity 
+                style={styles.deleteBtn} 
+                onPress={handleDeleteSelected}
+              >
+                <Text style={styles.deleteBtnText}>🗑️</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.exportBtn, isExporting && styles.exportBtnDisabled]} 
+              onPress={handleExport}
+              disabled={isExporting}
+            >
+              <Text style={styles.exportBtnText}>
+                {isExporting ? '⏳' : selectedIds.length > 0 ? `📥 (${selectedIds.length})` : '📥 CSV'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.filterBtn, showFilters && styles.filterBtnActive]} 
+              onPress={() => setShowFilters(!showFilters)}
+            >
+              <Text style={styles.filterBtnText}>🔍</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by barcode value..."
-            placeholderTextColor="#555"
-            value={search}
-            onChangeText={handleSearch}
-            onSubmitEditing={submitSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity style={styles.searchBtn} onPress={submitSearch}>
-            <Text style={styles.searchBtnText}>🔍</Text>
-          </TouchableOpacity>
-        </View>
+        {showFilters && (
+          <View style={styles.filtersBox}>
+             <View style={styles.filterRow}>
+                <Text style={styles.filterLabel}>Type:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                   {['all', 'order', 'return', 'product', 'unknown'].map(type => (
+                     <TouchableOpacity 
+                       key={type} 
+                       style={[styles.filterTab, filterType === type && { backgroundColor: Colors[type] || Colors.primary }]}
+                       onPress={() => setFilterType(type)}
+                     >
+                       <Text style={[styles.filterTabText, filterType === type && { color: '#000' }]}>
+                         {type === 'all' ? 'All' : type.toUpperCase()}
+                       </Text>
+                     </TouchableOpacity>
+                   ))}
+                </ScrollView>
+             </View>
+             
+             {/* Search Bar inside filters or below */}
+             <View style={styles.searchContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search by barcode..."
+                  placeholderTextColor="#444"
+                  value={search}
+                  onChangeText={setSearch}
+                  onSubmitEditing={() => fetchHistory(search)}
+                />
+                <TouchableOpacity style={styles.applyBtn} onPress={() => fetchHistory(search)}>
+                   <Text style={{ color: '#000', fontWeight: '800' }}>APPLY</Text>
+                </TouchableOpacity>
+             </View>
+          </View>
+        )}
       </View>
 
       {loading && !refreshing ? (
@@ -199,48 +322,112 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   exportBtn: {
-    backgroundColor: '#00E5FF20',
-    paddingHorizontal: 16,
+    backgroundColor: '#111',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#00E5FF30',
+    borderColor: '#333',
   },
   exportBtnDisabled: {
     opacity: 0.5,
   },
   exportBtnText: {
     color: '#00E5FF',
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: '800',
+    fontSize: 12,
   },
+  filterBtn: {
+    backgroundColor: '#111',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  filterBtnActive: {
+    borderColor: '#00E5FF',
+    backgroundColor: '#00E5FF20'
+  },
+  filterBtnText: { fontSize: 18 },
+  deleteBtn: {
+    backgroundColor: '#F4433620',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F4433650',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  deleteBtnText: { fontSize: 18 },
+  selectAllBtn: {
+    backgroundColor: '#111',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  
+  filtersBox: {
+    marginTop: 15,
+    backgroundColor: '#0F0F0F',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#222'
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16
+  },
+  filterLabel: {
+    color: '#555',
+    fontWeight: '800',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    width: 40
+  },
+  filterTab: {
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333'
+  },
+  filterTabText: {
+    color: '#777',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+
   searchContainer: {
     flexDirection: 'row',
     gap: 10,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#141414',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: '#000',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     color: '#FFF',
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#222',
-  },
-  searchBtn: {
-    backgroundColor: '#1A1A1A',
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 13,
     borderWidth: 1,
     borderColor: '#333',
   },
-  searchBtnText: {
-    fontSize: 18,
+  applyBtn: {
+    backgroundColor: '#00E5FF',
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    justifyContent: 'center'
   },
   headerTitle: {
     fontSize: 28,

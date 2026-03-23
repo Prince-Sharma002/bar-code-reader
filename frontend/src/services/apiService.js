@@ -31,13 +31,14 @@ const saveToLocal = async (newScan) => {
   }
 };
 
-export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null) => {
+export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null, type = 'unknown') => {
   const newScan = {
     barcodeValue,
     format,
     deviceId,
     latitude,
     longitude,
+    type,
     timestamp: new Date().toISOString(),
     synced: false,
   };
@@ -94,8 +95,29 @@ export const getScanHistory = async (params = {}) => {
 /**
  * Returns the URL for CSV export
  */
-export const getExportUrl = () => {
-  return `${BASE_URL}/scan-history/export`;
+export const getExportUrl = (ids = []) => {
+  const query = ids.length > 0 ? `?ids=${ids.join(',')}` : '';
+  return `${BASE_URL}/scan-history/export${query}`;
+};
+
+export const deleteScans = async (ids) => {
+  try {
+    const response = await apiClient.delete('/scan-history', { data: { ids } });
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting scans:', error);
+    throw error;
+  }
+};
+
+export const lookupProduct = async (code) => {
+  try {
+    const response = await apiClient.get(`/products/lookup/${code}`);
+    return response.data;
+  } catch (error) {
+    console.warn('Product lookup failed:', error);
+    throw error;
+  }
 };
 
 // --- Mock Data for Testing ---

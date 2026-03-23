@@ -32,10 +32,20 @@ const FORMAT_COLORS = {
   ITF_14: '#94A3B8',
 };
 
+import Colors from '../constants/Colors';
+import { TouchableOpacity } from 'react-native';
+
+const TYPE_ICONS = {
+  order: '🎯',
+  return: '🔄',
+  product: '🍱',
+  unknown: '📄',
+};
+
 /**
  * Individual scan history list item with an entrance animation.
  */
-const ScanHistoryItem = ({ scan, index }) => {
+const ScanHistoryItem = ({ scan, index, isSelected, onSelect, isSelectionMode }) => {
   const slideAnim = useRef(new Animated.Value(40)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -58,6 +68,7 @@ const ScanHistoryItem = ({ scan, index }) => {
   }, []);
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown Date';
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
       month: 'short',
@@ -67,8 +78,9 @@ const ScanHistoryItem = ({ scan, index }) => {
     });
   };
 
-  const icon = FORMAT_ICONS[scan.format] || '🔲';
-  const accentColor = FORMAT_COLORS[scan.format] || '#00E5FF';
+  const accentColor = Colors[scan.type] || Colors.primary;
+  const typeIcon = TYPE_ICONS[scan.type] || '📄';
+  const formatIcon = FORMAT_ICONS[scan.format] || '🔲';
 
   return (
     <Animated.View
@@ -78,32 +90,54 @@ const ScanHistoryItem = ({ scan, index }) => {
           opacity: opacityAnim,
           transform: [{ translateY: slideAnim }],
         },
+        isSelected && { backgroundColor: `${accentColor}15`, borderColor: accentColor },
       ]}
     >
-      {/* Left accent bar */}
-      <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
-
-      {/* Icon */}
-      <View style={[styles.iconWrapper, { backgroundColor: `${accentColor}20` }]}>
-        <Text style={styles.iconText}>{icon}</Text>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        <Text style={styles.barcodeValue} numberOfLines={1}>
-          {scan.barcodeValue}
-        </Text>
-        <View style={styles.meta}>
-          <Text style={[styles.formatBadge, { color: accentColor }]}>
-            {scan.format}
-          </Text>
-          <Text style={styles.separator}>•</Text>
-          <Text style={styles.dateText}>{formatDate(scan.scannedAt)}</Text>
-        </View>
-        {scan.deviceId && scan.deviceId !== 'Unknown' && (
-          <Text style={styles.deviceId}>📱 {scan.deviceId}</Text>
+      <TouchableOpacity 
+         activeOpacity={0.7} 
+         onPress={() => onSelect(scan)}
+         style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+      >
+        {isSelectionMode && (
+          <View style={[styles.checkbox, isSelected && { backgroundColor: accentColor, borderColor: accentColor }]}>
+            {isSelected && <Text style={styles.checkMark}>✓</Text>}
+          </View>
         )}
-      </View>
+
+        {/* Left accent bar */}
+        <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
+
+        {/* Icon Wrapper (Show Type Icon instead of Format Icon for prominence) */}
+        <View style={[styles.iconWrapper, { backgroundColor: `${accentColor}15` }]}>
+          <Text style={styles.iconText}>{typeIcon}</Text>
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
+             <Text style={styles.barcodeValue} numberOfLines={1}>
+               {scan.barcodeValue}
+             </Text>
+             {scan.type !== 'unknown' && (
+                <View style={[styles.typeBadge, { backgroundColor: `${accentColor}20` }]}>
+                   <Text style={[styles.typeBadgeText, { color: accentColor }]}>{scan.type}</Text>
+                </View>
+             )}
+          </View>
+          
+          <View style={styles.meta}>
+            <Text style={[styles.formatBadge, { color: accentColor }]}>
+               {formatIcon} {scan.format}
+            </Text>
+            <Text style={styles.separator}>•</Text>
+            <Text style={styles.dateText}>{formatDate(scan.scannedAt || scan.timestamp)}</Text>
+          </View>
+          
+          {scan.deviceId && scan.deviceId !== 'Unknown' && (
+            <Text style={styles.deviceId}>📱 {scan.deviceId}</Text>
+          )}
+        </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -122,12 +156,27 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#333',
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  checkMark: {
+    color: '#0A0A0A',
+    fontSize: 12,
+    fontWeight: '900'
+  },
   accentBar: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: 4,
+    width: 3,
   },
   iconWrapper: {
     width: 44,
@@ -135,19 +184,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
   },
   iconText: {
     fontSize: 22,
   },
   content: {
     flex: 1,
-    gap: 4,
+    gap: 2,
+    marginLeft: 10
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   },
   barcodeValue: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
+    flex: 1
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  typeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase'
   },
   meta: {
     flexDirection: 'row',
@@ -166,11 +231,12 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 11,
-    color: '#555',
+    color: '#777',
   },
   deviceId: {
     fontSize: 11,
-    color: '#444',
+    color: '#555',
+    marginTop: 2
   },
 });
 

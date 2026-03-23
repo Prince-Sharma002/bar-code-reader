@@ -7,12 +7,22 @@ const Scan = require('../models/Scan');
  */
 exports.getScans = async (req, res) => {
   try {
-    const { search, format, startDate, endDate } = req.query;
+    const { search, format, startDate, endDate, type, deviceId } = req.query;
     let query = {};
 
     // Search by barcode value
     if (search) {
       query.barcodeValue = { $regex: search, $options: 'i' };
+    }
+
+    // Filter by type
+    if (type) {
+      query.type = type;
+    }
+
+    // Filter by deviceId
+    if (deviceId) {
+      query.deviceId = deviceId;
     }
 
     // Filter by format
@@ -49,7 +59,7 @@ exports.getScans = async (req, res) => {
  */
 exports.storeScan = async (req, res) => {
   try {
-    const { barcodeValue, format, deviceId, latitude, longitude } = req.body;
+    const { barcodeValue, format, deviceId, latitude, longitude, type } = req.body;
 
     if (!barcodeValue || !format) {
       return res.status(400).json({
@@ -58,8 +68,7 @@ exports.storeScan = async (req, res) => {
       });
     }
 
-    // Check if barcode already scanned within the last 24 hours (optional logic)
-    // For "already scanner alert" requirement, we could check DB.
+    // Check if barcode already scanned within the last 24 hours
     const alreadyScanned = await Scan.findOne({ 
       barcodeValue, 
       scannedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } 
@@ -71,12 +80,43 @@ exports.storeScan = async (req, res) => {
       deviceId,
       latitude,
       longitude,
+      type: type || 'unknown'
     });
 
     res.status(201).json({
       success: true,
-      alreadyScanned: !!alreadyScanned, // Notify UI if it was already scanned recently
+      alreadyScanned: !!alreadyScanned,
       data: scan,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Delete multiple scans
+ * @route   DELETE /api/scan-history
+ * @access  Public
+ */
+exports.deleteScans = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({
+        success: false,
+        message: 'IDs array is required',
+      });
+    }
+
+    await Scan.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${ids.length} scans`,
     });
   } catch (error) {
     res.status(500).json({
@@ -94,14 +134,20 @@ exports.storeScan = async (req, res) => {
  */
 exports.exportScans = async (req, res) => {
   try {
-    const scans = await Scan.find().sort({ scannedAt: -1 });
+    const { ids } = req.query;
+    let query = {};
+    if (ids) {
+      query._id = { $in: ids.split(',') };
+    }
+
+    const scans = await Scan.find(query).sort({ scannedAt: -1 });
     
-    // Create CSV header
-    let csv = 'Barcode Value,Format,Scanned At,Device ID,Latitude,Longitude\n';
+    // Create CSV header (incl. type now)
+    let csv = 'Barcode Value,Format,Type,Scanned At,Device ID,Latitude,Longitude\n';
     
     // Add data rows
     scans.forEach(scan => {
-      csv += `"${scan.barcodeValue}","${scan.format}","${scan.scannedAt?.toISOString()}","${scan.deviceId}","${scan.latitude || ''}","${scan.longitude || ''}"\n`;
+      csv += `"${scan.barcodeValue}","${scan.format}","${scan.type}","${scan.scannedAt?.toISOString()}","${scan.deviceId}","${scan.latitude || ''}","${scan.longitude || ''}"\n`;
     });
 
     res.header('Content-Type', 'text/csv');

@@ -23,6 +23,11 @@ const scanSchema = new mongoose.Schema({
   longitude: {
     type: Number,
   },
+  type: {
+    type: String,
+    enum: ['order', 'return', 'product', 'unknown'],
+    default: 'unknown'
+  }
 });
 
 module.exports = mongoose.model('Scan', scanSchema);
