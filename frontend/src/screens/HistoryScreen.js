@@ -27,89 +27,46 @@ const HistoryScreen = ({ navigation }) => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   
-  // Filters
-  const [filterType, setFilterType] = useState('all'); // all, order, return, product, unknown
+  const [filterType, setFilterType] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
 
-  // Fetch history from backend
   const fetchHistory = useCallback(async (searchQuery = '') => {
     try {
       if (!refreshing) setLoading(true);
       setError(null);
       const params = { search: searchQuery };
       if (filterType !== 'all') params.type = filterType;
-      if (startDate) params.startDate = startDate.toISOString();
-      if (endDate) params.endDate = endDate.toISOString();
-
       const data = await getScanHistory(params);
       setScans(data || []);
     } catch (err) {
-      setError('Could not connect to the server. Showing local history if available.');
+      setError('Connection interrupted. Showing local data.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshing, filterType, startDate, endDate]);
+  }, [refreshing, filterType]);
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
+    const sub = navigation.addListener('focus', fetchHistory);
+    return sub;
+  }, [fetchHistory, navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchHistory(search);
   };
 
-  const handleSearch = (text) => {
-    setSearch(text);
-    // Debounce or search on submit
-  };
-
-  const submitSearch = () => {
-    fetchHistory(search);
-  };
-
   const handleExport = async () => {
-    if (scans.length === 0) {
-      Alert.alert('No Data', 'There are no scans to export.');
-      return;
-    }
-
+    if (scans.length === 0) return;
     setIsExporting(true);
     try {
-      // If items selected, only export those
       const url = getExportUrl(selectedIds);
-      const fileUri = FileSystem.cacheDirectory + `scan_history_${Date.now()}.csv`;
-      
+      const fileUri = FileSystem.cacheDirectory + `logs_${Date.now()}.csv`;
       const downloadRes = await FileSystem.downloadAsync(url, fileUri);
-      
-      if (downloadRes.status === 200) {
-        await Sharing.shareAsync(downloadRes.uri);
-      } else {
-        throw new Error('Download failed');
-      }
+      if (downloadRes.status === 200) await Sharing.shareAsync(downloadRes.uri);
     } catch (err) {
-      console.log('Export Error, falling back to local CSV generation:', err);
-      try {
-        const scansToExport = selectedIds.length > 0 
-          ? scans.filter(s => selectedIds.includes(s._id))
-          : scans;
-
-        // Generate CSV string locally
-        const header = "Date,Barcode,Format,Type,Device\n";
-        const rows = scansToExport.map(s => 
-          `${new Date(s.scannedAt || s.timestamp).toLocaleString()},${s.barcodeValue},${s.format},${s.type || 'unknown'},${s.deviceId || 'Unknown'}`
-        ).join("\n");
-        const csvContent = header + rows;
-
-        const localUri = FileSystem.cacheDirectory + 'manual_export.csv';
-        await FileSystem.writeAsStringAsync(localUri, csvContent);
-        await Sharing.shareAsync(localUri);
-      } catch (innerErr) {
-        Alert.alert('Export Failed', 'Could not generate CSV file locally.');
-      }
+      Alert.alert('Export Error', 'CSV generation failed.');
     } finally {
       setIsExporting(false);
     }
@@ -117,11 +74,7 @@ const HistoryScreen = ({ navigation }) => {
 
   const handleToggleSelect = (scan) => {
     const id = scan._id || scan.id;
-    if (!id) {
-       console.log('Cannot select item without ID:', scan);
-       return;
-    }
-
+    if (!id) return;
     if (selectedIds.includes(id)) {
       const updated = selectedIds.filter(sid => sid !== id);
       setSelectedIds(updated);
@@ -134,38 +87,23 @@ const HistoryScreen = ({ navigation }) => {
 
   const handleDeleteSelected = () => {
     if (selectedIds.length === 0) return;
-
-    Alert.alert(
-      'Delete Scans',
-      `Are you sure you want to delete ${selectedIds.length} selected scans?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            console.log('Deleting IDs:', selectedIds);
-            try {
-              const res = await deleteScans(selectedIds);
-              console.log('Delete response from backend:', res);
-              
-              // Filter scans by _id or id
-              setScans(prev => prev.filter(s => {
-                 const scanId = s._id || s.id;
-                 return !selectedIds.includes(scanId);
-              }));
-              
-              setSelectedIds([]);
-              setIsSelectionMode(false);
-              Alert.alert('Success', `Deleted ${selectedIds.length} scans.`);
-            } catch (err) {
-              console.error('Delete failed:', err);
-              Alert.alert('Error', `Failed to delete: ${err.response?.data?.message || err.message}`);
-            }
+    Alert.alert('Delete Logs', `Remove ${selectedIds.length} records?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Delete', 
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteScans(selectedIds);
+            setScans(prev => prev.filter(s => !selectedIds.includes(s._id || s.id)));
+            setSelectedIds([]);
+            setIsSelectionMode(false);
+          } catch (err) {
+            Alert.alert('Error', 'Deletion failed.');
           }
         }
-      ]
-    );
+      }
+    ]);
   };
 
   const renderItem = ({ item, index }) => (
@@ -178,104 +116,77 @@ const HistoryScreen = ({ navigation }) => {
     />
   );
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>📭</Text>
-      <Text style={styles.emptyTitle}>No Scans Found</Text>
-      <Text style={styles.emptySubtitle}>
-        Try adjusting your search or scan a barcode to see results here.
-      </Text>
-    </View>
-  );
-
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>Scan History</Text>
-            <Text style={styles.headerSubtitle}>
-              {scans.length > 0 ? `${scans.length} records found` : 'Pull to refresh'}
-            </Text>
+            <Text style={styles.headerSub}>ACTIVITY ARCHIVE</Text>
+            <Text style={styles.headerTitle}>Scan Feed</Text>
           </View>
           
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={styles.actionRow}>
             {isSelectionMode && (
               <TouchableOpacity 
-                style={styles.selectAllBtn} 
-                onPress={() => {
-                  if (selectedIds.length === scans.length) {
-                    setSelectedIds([]);
-                    setIsSelectionMode(false);
-                  } else {
-                    setSelectedIds(scans.map(s => s._id).filter(id => !!id));
-                  }
-                }}
+                style={styles.circleBtn} 
+                onPress={() => setSelectedIds(selectedIds.length === scans.length ? [] : scans.map(s => s._id))}
               >
-                <Text style={styles.filterBtnText}>{selectedIds.length === scans.length ? '🔘' : '⭕'}</Text>
+                <Text style={styles.btnIcon}>{selectedIds.length === scans.length ? '⬡' : '⬢'}</Text>
               </TouchableOpacity>
             )}
 
             {isSelectionMode && (
-              <TouchableOpacity 
-                style={styles.deleteBtn} 
-                onPress={handleDeleteSelected}
-              >
-                <Text style={styles.deleteBtnText}>🗑️</Text>
+              <TouchableOpacity style={[styles.circleBtn, styles.dangerBtn]} onPress={handleDeleteSelected}>
+                <Text style={[styles.btnIcon, { color: Colors.return }]}>◿</Text>
               </TouchableOpacity>
             )}
             
             <TouchableOpacity 
-              style={[styles.exportBtn, isExporting && styles.exportBtnDisabled]} 
+              style={[styles.glassBtn, isExporting && styles.btnDisabled]} 
               onPress={handleExport}
               disabled={isExporting}
             >
-              <Text style={styles.exportBtnText}>
-                {isExporting ? '⏳' : selectedIds.length > 0 ? `📥 (${selectedIds.length})` : '📥 CSV'}
+              <Text style={styles.glassBtnText}>
+                {isExporting ? '...' : selectedIds.length > 0 ? `EXPORT (${selectedIds.length})` : 'EXPORT'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.filterBtn, showFilters && styles.filterBtnActive]} 
+              style={[styles.circleBtn, showFilters && styles.circleBtnActive]} 
               onPress={() => setShowFilters(!showFilters)}
             >
-              <Text style={styles.filterBtnText}>🔍</Text>
+              <Text style={styles.btnIcon}>⚲</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {showFilters && (
-          <View style={styles.filtersBox}>
-             <View style={styles.filterRow}>
-                <Text style={styles.filterLabel}>Type:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                   {['all', 'order', 'return', 'product', 'unknown'].map(type => (
-                     <TouchableOpacity 
-                       key={type} 
-                       style={[styles.filterTab, filterType === type && { backgroundColor: Colors[type] || Colors.primary }]}
-                       onPress={() => setFilterType(type)}
-                     >
-                       <Text style={[styles.filterTabText, filterType === type && { color: '#000' }]}>
-                         {type === 'all' ? 'All' : type.toUpperCase()}
-                       </Text>
-                     </TouchableOpacity>
-                   ))}
-                </ScrollView>
-             </View>
+          <View style={styles.filterBox}>
+             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+                {['all', 'order', 'return', 'product', 'unknown'].map(type => (
+                  <TouchableOpacity 
+                    key={type} 
+                    style={[styles.chip, filterType === type && styles.chipActive]}
+                    onPress={() => setFilterType(type)}
+                  >
+                    <Text style={[styles.chipText, filterType === type && styles.chipTextActive]}>
+                      {type.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+             </ScrollView>
              
-             {/* Search Bar inside filters or below */}
-             <View style={styles.searchContainer}>
+             <View style={styles.searchRow}>
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search by barcode..."
-                  placeholderTextColor="#444"
+                  placeholder="Filter by barcode..."
+                  placeholderTextColor={Colors.textMuted}
                   value={search}
                   onChangeText={setSearch}
                   onSubmitEditing={() => fetchHistory(search)}
                 />
                 <TouchableOpacity style={styles.applyBtn} onPress={() => fetchHistory(search)}>
-                   <Text style={{ color: '#000', fontWeight: '800' }}>APPLY</Text>
+                   <Text style={styles.applyBtnText}>SCAN</Text>
                 </TouchableOpacity>
              </View>
           </View>
@@ -284,31 +195,23 @@ const HistoryScreen = ({ navigation }) => {
 
       {loading && !refreshing ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#00E5FF" />
-          <Text style={styles.loadingText}>Loading history...</Text>
-        </View>
-      ) : error && scans.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => fetchHistory(search)}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+          <ActivityIndicator color={Colors.primary} />
         </View>
       ) : (
         <FlatList
           data={scans}
           keyExtractor={(item) => item._id || item.timestamp || Math.random().toString()}
           renderItem={renderItem}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={scans.length === 0 ? { flex: 1 } : { paddingBottom: 20 }}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>◰</Text>
+              <Text style={styles.emptyTitle}>Archive Empty</Text>
+              <Text style={styles.emptyText}>No scanning activity recorded in this view.</Text>
+            </View>
+          }
+          contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#00E5FF"
-              colors={['#00E5FF']}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
           }
         />
       )}
@@ -317,198 +220,56 @@ const HistoryScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0A0A0A',
-  },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1A1A',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  exportBtn: {
-    backgroundColor: '#111',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  exportBtnDisabled: {
-    opacity: 0.5,
-  },
-  exportBtnText: {
-    color: '#00E5FF',
-    fontWeight: '800',
-    fontSize: 12,
-  },
-  filterBtn: {
-    backgroundColor: '#111',
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  filterBtnActive: {
-    borderColor: '#00E5FF',
-    backgroundColor: '#00E5FF20'
-  },
-  filterBtnText: { fontSize: 18 },
-  deleteBtn: {
-    backgroundColor: '#F4433620',
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F4433650',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  deleteBtnText: { fontSize: 18 },
-  selectAllBtn: {
-    backgroundColor: '#111',
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#333',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { paddingTop: 64, paddingBottom: 20, paddingHorizontal: 24 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
+  headerSub: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 10 },
   
-  filtersBox: {
-    marginTop: 15,
-    backgroundColor: '#0F0F0F',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#222'
+  glassBtn: { 
+    backgroundColor: Colors.surface, paddingHorizontal: 16, height: 44, 
+    borderRadius: 14, borderWidth: 1, borderColor: Colors.border, 
+    justifyContent: 'center', alignItems: 'center' 
   },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16
+  glassBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 1 },
+  circleBtn: { 
+    width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, 
+    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' 
   },
-  filterLabel: {
-    color: '#555',
-    fontWeight: '800',
-    fontSize: 10,
-    textTransform: 'uppercase',
-    width: 40
-  },
-  filterTab: {
-    backgroundColor: '#1A1A1A',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#333'
-  },
-  filterTabText: {
-    color: '#777',
-    fontSize: 11,
-    fontWeight: '800'
-  },
+  circleBtnActive: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}10` },
+  btnIcon: { fontSize: 18, color: Colors.textSecondary },
+  dangerBtn: { borderColor: `${Colors.return}40` },
+  btnDisabled: { opacity: 0.5 },
 
-  searchContainer: {
-    flexDirection: 'row',
-    gap: 10,
+  filterBox: { marginTop: 8, gap: 16 },
+  chipScroll: { marginHorizontal: -24, paddingHorizontal: 24 },
+  chip: { 
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, 
+    backgroundColor: Colors.surface, marginRight: 10, borderWidth: 1, borderColor: Colors.border 
   },
-  searchInput: {
-    flex: 1,
-    backgroundColor: '#000',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#FFF',
-    fontSize: 13,
-    borderWidth: 1,
-    borderColor: '#333',
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '800' },
+  chipTextActive: { color: Colors.background },
+
+  searchRow: { flexDirection: 'row', gap: 12 },
+  searchInput: { 
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, 
+    paddingHorizontal: 16, height: 48, color: Colors.text, fontSize: 14, 
+    borderWidth: 1, borderColor: Colors.border 
   },
-  applyBtn: {
-    backgroundColor: '#00E5FF',
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    justifyContent: 'center'
+  applyBtn: { 
+    backgroundColor: Colors.surfaceElevated, paddingHorizontal: 20, 
+    borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: Colors.primary 
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#555',
-    marginTop: 4,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  loadingText: {
-    color: '#555',
-    fontSize: 14,
-    marginTop: 12,
-  },
-  errorIcon: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: '#1A1A1A',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
-  },
-  retryText: {
-    color: '#00E5FF',
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
-    lineHeight: 21,
-  },
+  applyBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11 },
+
+  list: { paddingHorizontal: 24, paddingBottom: 40 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100, paddingHorizontal: 40 },
+  emptyIcon: { fontSize: 64, color: Colors.border, marginBottom: 20, textAlign: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
 });
 
 export default HistoryScreen;

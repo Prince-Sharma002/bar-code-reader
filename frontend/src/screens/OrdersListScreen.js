@@ -19,17 +19,14 @@ const OrdersListScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStatus, setActiveStatus] = useState('all');
-  
   const navigation = useNavigation();
 
   const fetchOrders = async () => {
     try {
       const resp = await getOrders();
-      if (resp.ok) {
-        setOrders(resp.orders);
-      }
+      if (resp.ok) setOrders(resp.orders);
     } catch (error) {
-      console.error('Error fetching orders', error);
+      console.error(error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -38,12 +35,8 @@ const OrdersListScreen = () => {
 
   useEffect(() => {
     fetchOrders();
-    
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchOrders();
-    });
-    
-    return unsubscribe;
+    const sub = navigation.addListener('focus', fetchOrders);
+    return sub;
   }, [navigation]);
 
   const onRefresh = () => {
@@ -52,38 +45,42 @@ const OrdersListScreen = () => {
   };
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      const matchesSearch = 
-        order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (order.customer?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStatus = activeStatus === 'all' || order.status === activeStatus;
-      
-      return matchesSearch && matchesStatus;
+    return orders.filter(o => {
+      const ms = o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                 (o.customer?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const mt = activeStatus === 'all' || o.status === activeStatus;
+      return ms && mt;
     });
   }, [orders, searchQuery, activeStatus]);
 
-  const renderItem = ({ item }) => {
-    const statusColor = item.status === 'packed' || item.status === 'ready_to_ship' ? Colors.order :
-      item.status === 'pending' ? Colors.duplicate : 
-      item.status === 'delivered' ? Colors.order : 
-      item.status === 'returned' || item.status === 'processing' ? Colors.return : '#888';
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'packed': case 'delivered': case 'ready_to_ship': return Colors.order;
+      case 'pending': return Colors.duplicate;
+      case 'returned': return Colors.return;
+      case 'processing': return Colors.product;
+      default: return Colors.textMuted;
+    }
+  };
 
+  const renderItem = ({ item }) => {
+    const sCol = getStatusColor(item.status);
     return (
       <TouchableOpacity 
         style={styles.card} 
         onPress={() => navigation.navigate('OrderDetail', { orderId: item._id })}
+        activeOpacity={0.8}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.orderNumber}>{item.order_number}</Text>
-          <View style={[styles.statusBadge, { borderColor: statusColor, backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>{item.status.toUpperCase()}</Text>
+          <Text style={styles.orderNumber}>#{item.order_number}</Text>
+          <View style={[styles.statusBadge, { borderColor: `${sCol}30`, backgroundColor: `${sCol}10` }]}>
+            <Text style={[styles.statusText, { color: sCol }]}>{item.status.replace(/_/g, ' ').toUpperCase()}</Text>
           </View>
         </View>
-        <Text style={styles.customerName}>👤 {item.customer?.name || 'Customer'}</Text>
+        <Text style={styles.customerName}>{item.customer?.name || 'Unknown Customer'}</Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.itemCount}>📦 {item.items?.length || 0} Items</Text>
-          <Text style={styles.platform}>{item.platform}</Text>
+          <Text style={styles.itemCount}>⬡ {item.items?.length || 0} ITEMS</Text>
+          <Text style={styles.platform}>{item.platform.toUpperCase()}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -92,7 +89,7 @@ const OrdersListScreen = () => {
   if (loading && !refreshing) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00E5FF" />
+        <ActivityIndicator color={Colors.primary} />
       </View>
     );
   }
@@ -100,50 +97,36 @@ const OrdersListScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerTitleRow}>
+        <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>📋 Orders</Text>
-            <Text style={styles.headerSub}>Manage & Fulfill Orders</Text>
+            <Text style={styles.headerSub}>FULFILLMENT CENTER</Text>
+            <Text style={styles.headerTitle}>Order Queue</Text>
           </View>
-          <View style={styles.orderCountBadge}>
-            <Text style={styles.orderCountText}>{filteredOrders.length}</Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countText}>{filteredOrders.length}</Text>
           </View>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
+        <View style={styles.searchBar}>
+          <Text style={styles.searchIcon}>⚲</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by Order ID or Customer..."
-            placeholderTextColor="#666"
+            placeholder="Search by ID or name..."
+            placeholderTextColor={Colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
           />
         </View>
 
-        {/* Filter Chips */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          style={styles.filterScroll}
-          contentContainerStyle={styles.filterContent}
-        >
-          {STATUS_FILTERS.map((filter) => (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
+          {STATUS_FILTERS.map(f => (
             <TouchableOpacity
-              key={filter.value}
-              style={[
-                styles.filterChip,
-                activeStatus === filter.value && { backgroundColor: Colors.primary, borderColor: Colors.primary }
-              ]}
-              onPress={() => setActiveStatus(filter.value)}
+              key={f.value}
+              style={[styles.chip, activeStatus === f.value && styles.chipActive]}
+              onPress={() => setActiveStatus(f.value)}
             >
-              <Text style={[
-                styles.filterText,
-                activeStatus === filter.value && { color: '#000' }
-              ]}>
-                {filter.label}
+              <Text style={[styles.chipText, activeStatus === f.value && styles.chipTextActive]}>
+                {f.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -154,18 +137,13 @@ const OrdersListScreen = () => {
         data={filteredOrders}
         keyExtractor={item => item._id}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00E5FF" />}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         ListEmptyComponent={
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyEmoji}>🔎</Text>
-            <Text style={styles.emptyTitle}>No Matching Orders</Text>
-            <Text style={styles.emptyText}>Try adjusting your filters or search query.</Text>
-            {(searchQuery || activeStatus !== 'all') && (
-              <TouchableOpacity style={styles.resetBtn} onPress={() => { setSearchQuery(''); setActiveStatus('all'); }}>
-                <Text style={styles.resetBtnText}>Clear All Filters</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>◰</Text>
+            <Text style={styles.emptyTitle}>Queue Clear</Text>
+            <Text style={styles.emptyText}>No matching orders found in your current selection.</Text>
           </View>
         }
       />
@@ -174,43 +152,60 @@ const OrdersListScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center' },
-  header: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 16, backgroundColor: '#111', borderBottomWidth: 1, borderBottomColor: '#222' },
-  headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: '#555', marginTop: 2 },
-  orderCountBadge: { backgroundColor: '#1A1A1A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
-  orderCountText: { color: '#00E5FF', fontWeight: '800', fontSize: 13 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  centered: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
+  header: { paddingTop: 64, paddingHorizontal: 24, paddingBottom: 20 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
+  headerSub: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  countBadge: { 
+    backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 6, 
+    borderRadius: 12, borderWidth: 1, borderColor: Colors.border 
+  },
+  countText: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
   
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A1A1A', borderRadius: 12, paddingHorizontal: 12, marginBottom: 16, height: 46, borderWidth: 1, borderColor: '#222' },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, color: '#FFF', fontSize: 14 },
+  searchBar: { 
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, 
+    borderRadius: 16, paddingHorizontal: 16, marginBottom: 16, height: 52, 
+    borderWidth: 1, borderColor: Colors.border 
+  },
+  searchIcon: { fontSize: 18, marginRight: 10, color: Colors.textMuted },
+  searchInput: { flex: 1, color: Colors.text, fontSize: 14, fontWeight: '600' },
   
-  filterScroll: { marginBottom: 4 },
-  filterContent: { paddingRight: 20 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#1A1A1A', marginRight: 8, borderWidth: 1, borderColor: '#222' },
-  activeFilterChip: { backgroundColor: '#00E5FF', borderColor: '#00E5FF' },
-  filterText: { color: '#888', fontSize: 13, fontWeight: '600' },
-  activeFilterText: { color: '#000', fontWeight: '700' },
+  filterBar: { marginBottom: 4 },
+  chip: { 
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, 
+    backgroundColor: Colors.surface, marginRight: 10, borderWidth: 1, borderColor: Colors.border 
+  },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  chipTextActive: { color: Colors.background },
 
-  listContainer: { padding: 16, paddingBottom: 100 },
-  card: { backgroundColor: '#141414', borderRadius: 16, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: '#222' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  orderNumber: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  statusText: { fontSize: 10, fontWeight: '800' },
-  customerName: { fontSize: 14, color: '#CCC', marginBottom: 12 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#222', paddingTop: 12 },
-  itemCount: { fontSize: 13, color: '#888', fontWeight: '600' },
-  platform: { fontSize: 12, color: '#666', fontWeight: '500', backgroundColor: '#1A1A1A', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  list: { padding: 24, paddingBottom: 100 },
+  card: { 
+    backgroundColor: Colors.surface, borderRadius: 24, padding: 20, 
+    marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
+    elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  orderNumber: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
+  statusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  customerName: { fontSize: 15, color: Colors.textSecondary, fontWeight: '600', marginBottom: 16 },
+  cardFooter: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+    borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 
+  },
+  itemCount: { fontSize: 11, color: Colors.textMuted, fontWeight: '800', letterSpacing: 0.5 },
+  platform: { 
+    fontSize: 9, color: Colors.primary, fontWeight: '900', letterSpacing: 1,
+    backgroundColor: `${Colors.primary}10`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 
+  },
   
-  emptyWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 80 },
-  emptyEmoji: { fontSize: 50, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#777', marginBottom: 20, textAlign: 'center' },
-  resetBtn: { backgroundColor: '#1A1A1A', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
-  resetBtnText: { color: '#00E5FF', fontWeight: '700', fontSize: 14 }
+  empty: { alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 40 },
+  emptyIcon: { fontSize: 64, color: Colors.border, marginBottom: 20 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
 });
 
 export default OrdersListScreen;

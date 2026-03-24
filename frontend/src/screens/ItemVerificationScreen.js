@@ -20,26 +20,21 @@ const ItemVerificationScreen = () => {
   const route = useRoute();
   const { orderId } = route.params || {};
 
-  useEffect(() => {
-    fetchOrder();
-  }, [orderId]);
+  useEffect(() => { fetchOrder(); }, [orderId]);
 
   const fetchOrder = async () => {
     try {
       if (!orderId) {
-        Alert.alert('Error', 'No Order ID provided');
+        Alert.alert('Error', 'Missing ID');
         return navigation.goBack();
       }
-      
       const resp = await getOrderDetails(orderId);
       if (resp.ok) {
         setOrder(resp.order);
-        // Initialize verification check
         verifyItemsLocally(resp.order.items, []);
       }
-    } catch (error) {
-      console.error('Error fetching order', error);
-      Alert.alert('Error', 'Failed to fetch order details');
+    } catch (err) {
+      Alert.alert('Error', 'Fetch failed');
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -49,17 +44,15 @@ const ItemVerificationScreen = () => {
   const verifyItemsLocally = async (items, currentScans) => {
     try {
       const resp = await verifyOrderItems(orderId, currentScans);
-      if (resp.ok) {
-        setVerificationResult(resp);
-      }
+      if (resp.ok) setVerificationResult(resp);
     } catch (err) {
-      console.error('Error verifying items', err);
+      console.error(err);
     }
   };
 
   const handleBarcodeScanned = async ({ data }) => {
     setIsScanning(false);
-    Vibration.vibrate();
+    Vibration.vibrate(80);
     try {
       const { sound } = await Audio.Sound.createAsync(
         { uri: 'https://raw.githubusercontent.com/fede-87/bar-code-reader/main/frontend/assets/beep.mp3' }
@@ -77,11 +70,11 @@ const ItemVerificationScreen = () => {
       setLoading(true);
       const resp = await updateOrderStatus(order._id, 'packed');
       if (resp.ok) {
-        Alert.alert('Success', 'Order successfully verified and marked as packed!');
+        Alert.alert('Verified', 'Order manifest confirmed for fulfillment.');
         navigation.goBack();
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to update order status');
+      Alert.alert('Error', 'Status update failed');
     } finally {
       setLoading(false);
     }
@@ -90,7 +83,7 @@ const ItemVerificationScreen = () => {
   if (loading && !order) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#00E5FF" />
+        <ActivityIndicator color={Colors.primary} />
       </View>
     );
   }
@@ -104,10 +97,15 @@ const ItemVerificationScreen = () => {
           onBarcodeScanned={handleBarcodeScanned}
         />
         <View style={styles.scanOverlay}>
-          <Text style={styles.scanInstructions}>Point at product barcode</Text>
-          <View style={styles.targetBox} />
+          <Text style={styles.scanInstructions}>ALIGN BARCODE</Text>
+          <View style={styles.targetBox}>
+            <View style={[styles.corner, styles.tl]} />
+            <View style={[styles.corner, styles.tr]} />
+            <View style={[styles.corner, styles.bl]} />
+            <View style={[styles.corner, styles.br]} />
+          </View>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => setIsScanning(false)}>
-            <Text style={styles.cancelText}>Cancel Scan</Text>
+            <Text style={styles.cancelText}>CANCEL SCAN</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -118,41 +116,44 @@ const ItemVerificationScreen = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backEmoji}>←</Text>
+          <Text style={styles.backIcon}>◂</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verify Items</Text>
-        <View style={{ width: 40 }}/>
+        <Text style={styles.headerTitle}>Verification Hub</Text>
+        <View style={{ width: 44 }}/>
       </View>
       
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.summaryCard}>
-          <Text style={styles.orderLabel}>Order {order?.order_number}</Text>
+          <Text style={styles.subLabel}>ORDER #{order?.order_number}</Text>
           <View style={styles.progressRow}>
-            <Text style={styles.progressText}>
-              {verificationResult?.verified_count || 0} / {verificationResult?.total_items || order?.items?.length} Verified
-            </Text>
-            {verificationResult?.all_verified ? (
-              <Text style={styles.allDoneBadge}>✅ All Verified</Text>
-            ) : null}
+            <View>
+              <Text style={styles.progressTitle}>Package Accuracy</Text>
+              <Text style={styles.progressCount}>
+                {verificationResult?.verified_count || 0} / {verificationResult?.total_items || order?.items?.length} Verified
+              </Text>
+            </View>
+            <View style={[styles.badge, verificationResult?.all_verified && styles.badgeSuccess]}>
+              <Text style={[styles.badgeText, verificationResult?.all_verified && styles.badgeTextSuccess]}>
+                {verificationResult?.all_verified ? 'MANIFEST CLEAR' : 'PENDING'}
+              </Text>
+            </View>
           </View>
           
           <TouchableOpacity 
-            style={styles.scanItemBtn}
+            style={styles.primaryAction}
             onPress={async () => {
-              if (!permission) {
-                await requestPermission();
-              }
+              if (!permission?.granted) await requestPermission();
               setIsScanning(true);
             }}
           >
-            <Text style={styles.scanItemBtnText}>📷 Scan Product Barcode</Text>
+            <Text style={styles.primaryActionText}>LAUNCH OPTICAL SCAN</Text>
           </TouchableOpacity>
           
-          <View style={styles.manualEntryRow}>
+          <View style={styles.manualEntry}>
             <TextInput
               style={styles.manualInput}
-              placeholder="Or enter barcode manually..."
-              placeholderTextColor="#555"
+              placeholder="Manual SKU/Barcode..."
+              placeholderTextColor={Colors.textMuted}
               value={manualCode}
               onChangeText={setManualCode}
               onSubmitEditing={() => {
@@ -163,7 +164,7 @@ const ItemVerificationScreen = () => {
               }}
             />
             <TouchableOpacity 
-              style={styles.manualGoBtn}
+              style={styles.manualBtn}
               onPress={() => {
                 if (manualCode.trim()) {
                   handleBarcodeScanned({ data: manualCode.trim() });
@@ -171,52 +172,47 @@ const ItemVerificationScreen = () => {
                 }
               }}
             >
-              <Text style={styles.manualGoBtnText}>Verify</Text>
+              <Text style={styles.manualBtnText}>SYNC</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Expected Items</Text>
+        <Text style={styles.sectionTitle}>Manifest Checklist</Text>
         
         {verificationResult?.verification?.map((item, index) => (
-          <View key={index} style={[styles.itemCard, item.verified ? styles.itemVerified : {}]}>
+          <View key={index} style={[styles.itemCard, item.verified && styles.itemCardSuccess]}>
             <View style={styles.itemHeader}>
               <Text style={styles.itemName}>{item.name}</Text>
               <Text style={styles.itemQty}>x{item.quantity}</Text>
             </View>
-            <Text style={styles.itemSku}>SKU: {item.sku}</Text>
-            
-            <View style={styles.statusRow}>
-              {item.verified ? (
-                <Text style={styles.verifiedText}>✅ Verified Match</Text>
-              ) : (
-                <Text style={styles.pendingText}>⏳ Pending Scan</Text>
-              )}
+            <View style={styles.itemFooter}>
+              <Text style={styles.itemSku}>SKU: {item.sku}</Text>
+              <Text style={[styles.statusTag, item.verified && { color: Colors.order }]}>
+                {item.verified ? 'VERIFIED Match • ⬢' : 'Awaiting Scan • ⬡'}
+              </Text>
             </View>
           </View>
         ))}
 
         {verificationResult?.extra_scans?.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: '#FF4444', marginTop: 20 }]}>Extra / Unrecognized Scans</Text>
+            <Text style={styles.errorTitle}>Unidentified Scans</Text>
             {verificationResult.extra_scans.map((scan, idx) => (
               <View key={`ex-${idx}`} style={styles.errorCard}>
-                <Text style={styles.errorText}>❌ Barcode {scan} does not match any item</Text>
+                <Text style={styles.errorText}>◿ Barcode {scan} not in manifest</Text>
               </View>
             ))}
           </>
         )}
-        
       </ScrollView>
 
-      {/* Action Footer */}
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={[styles.packBtn, !verificationResult?.all_verified && styles.disabledBtn]} 
+          style={[styles.finalizeBtn, !verificationResult?.all_verified && styles.finalizeBtnDisabled]} 
           onPress={handleMarkPacked}
           disabled={!verificationResult?.all_verified}
         >
-          <Text style={styles.packBtnText}>✅ Mark as Packed</Text>
+          <Text style={styles.finalizeBtnText}>CONFIRM & FINALIZE</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -224,59 +220,58 @@ const ItemVerificationScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  centered: { flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: Colors.background },
+  centered: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
   header: { 
-    flexDirection: 'row', paddingTop: 58, paddingHorizontal: 16, 
-    paddingBottom: 16, backgroundColor: '#111', 
-    alignItems: 'center', justifyContent: 'space-between',
-    borderBottomWidth: 1, borderBottomColor: '#222'
+    flexDirection: 'row', paddingTop: 64, paddingHorizontal: 20, 
+    paddingBottom: 20, alignItems: 'center', justifyContent: 'space-between',
+    borderBottomWidth: 1, borderBottomColor: Colors.border
   },
-  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-  backEmoji: { fontSize: 24, color: Colors.primary },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF' },
-  scrollContent: { padding: 16, paddingBottom: 100 },
-  summaryCard: { backgroundColor: '#141414', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#222', marginBottom: 20 },
-  orderLabel: { fontSize: 14, color: '#888', marginBottom: 8, fontWeight: '600' },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  progressText: { fontSize: 24, fontWeight: '800', color: '#FFF' },
-  allDoneBadge: { backgroundColor: Colors.order + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden', color: Colors.order, fontWeight: '800', borderWidth: 1, borderColor: Colors.order + '40' },
-  scanItemBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: Colors.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  scanItemBtnText: { color: Colors.primary, fontSize: 15, fontWeight: '700' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#FFF', marginBottom: 12, marginHorizontal: 4 },
-  itemCard: { backgroundColor: '#141414', padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#222' },
-  itemVerified: { borderColor: Colors.order, backgroundColor: Colors.order + '10' },
-  
-  manualEntryRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
-  manualInput: { flex: 1, backgroundColor: '#000', borderRadius: 10, paddingHorizontal: 15, paddingVertical: 12, color: '#FFF', fontSize: 13, borderWidth: 1, borderColor: '#333' },
-  manualGoBtn: { backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: Colors.primary, paddingHorizontal: 20, borderRadius: 10, justifyContent: 'center' },
-  manualGoBtnText: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
-
-  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  itemName: { fontSize: 15, fontWeight: '600', color: '#FFF', flex: 1, marginRight: 8 },
-  itemQty: { fontSize: 16, fontWeight: '700', color: Colors.primary },
-  itemSku: { fontSize: 12, color: '#888', marginBottom: 12 },
-  statusRow: { borderTopWidth: 1, borderTopColor: '#222', paddingTop: 10 },
-  verifiedText: { color: Colors.order, fontWeight: '700', fontSize: 13 },
-  pendingText: { color: '#888', fontWeight: '700', fontSize: 13 },
-  errorCard: { backgroundColor: Colors.error + '10', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.error },
-  errorText: { color: Colors.error, fontWeight: 'bold' },
-  
-  // Camera overlay
-  scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  scanInstructions: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginBottom: 40 },
-  targetBox: { width: 250, height: 150, borderWidth: 2, borderColor: Colors.primary, borderRadius: 12 },
-  cancelBtn: { marginTop: 60, padding: 16, backgroundColor: '#1A1A1A', borderRadius: 12, borderWidth: 1, borderColor: '#333' },
-  cancelText: { color: '#FFF', fontWeight: 'bold' },
-
-  footer: { 
-    position: 'absolute', bottom: 0, left: 0, right: 0, 
-    backgroundColor: '#111', padding: 16, borderTopWidth: 1, 
-    borderTopColor: '#222', flexDirection: 'row', gap: 12 
-  },
-  packBtn: { flex: 1, backgroundColor: Colors.order, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  packBtnText: { color: '#0A0A0A', fontSize: 15, fontWeight: '700' },
-  disabledBtn: { backgroundColor: '#333', opacity: 0.7 }
+  backBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  backIcon: { fontSize: 20, color: Colors.textSecondary },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: 1 },
+  scroll: { padding: 24, paddingBottom: 120 },
+  summaryCard: { backgroundColor: Colors.surface, borderRadius: 28, padding: 24, borderWidth: 1, borderColor: Colors.border, marginBottom: 32 },
+  subLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  progressTitle: { fontSize: 13, color: Colors.textSecondary, fontWeight: '700', marginBottom: 4 },
+  progressCount: { fontSize: 28, fontWeight: '800', color: Colors.text },
+  badge: { backgroundColor: `${Colors.textMuted}10`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
+  badgeSuccess: { backgroundColor: `${Colors.order}15`, borderColor: `${Colors.order}40` },
+  badgeText: { fontSize: 9, fontWeight: '900', color: Colors.textMuted, letterSpacing: 0.5 },
+  badgeTextSuccess: { color: Colors.order },
+  primaryAction: { backgroundColor: Colors.primary, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  primaryActionText: { color: Colors.background, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  manualEntry: { flexDirection: 'row', marginTop: 16, gap: 12 },
+  manualInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, paddingHorizontal: 16, color: Colors.text, fontSize: 14, borderWidth: 1, borderColor: Colors.border, height: 48 },
+  manualBtn: { backgroundColor: Colors.surfaceElevated, paddingHorizontal: 20, borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: Colors.primary },
+  manualBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 16, marginLeft: 4 },
+  itemCard: { backgroundColor: Colors.surface, padding: 20, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
+  itemCardSuccess: { borderColor: `${Colors.order}30`, backgroundColor: `${Colors.order}05` },
+  itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1, marginRight: 8 },
+  itemQty: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  itemFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemSku: { fontSize: 11, color: Colors.textMuted, fontWeight: '700' },
+  statusTag: { fontSize: 11, fontWeight: '800', color: Colors.textMuted },
+  errorTitle: { fontSize: 14, fontWeight: '800', color: Colors.return, marginTop: 16, marginBottom: 12, marginLeft: 4 },
+  errorCard: { backgroundColor: `${Colors.return}10`, padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: `${Colors.return}30` },
+  errorText: { color: Colors.return, fontWeight: '800', fontSize: 13 },
+  scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center' },
+  scanInstructions: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 2, marginBottom: 40 },
+  targetBox: { width: 280, height: 280, borderRadius: 32 },
+  corner: { position: 'absolute', width: 40, height: 40, borderColor: Colors.primary, borderWidth: 6 },
+  tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 24 },
+  tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 24 },
+  bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 24 },
+  br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 24 },
+  cancelBtn: { marginTop: 60, height: 56, paddingHorizontal: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  cancelText: { color: '#FFF', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.background, padding: 24, borderTopWidth: 1, borderTopColor: Colors.border },
+  finalizeBtn: { backgroundColor: Colors.primary, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  finalizeBtnText: { color: Colors.background, fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  finalizeBtnDisabled: { backgroundColor: Colors.surfaceElevated, opacity: 0.5 }
 });
 
 export default ItemVerificationScreen;
