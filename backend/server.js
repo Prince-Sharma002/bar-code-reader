@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const scanRoutes = require('./routes/scanRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
+const adminLogRoutes = require('./routes/adminLogRoutes');
 
 // Load env vars
 dotenv.config();
@@ -24,10 +25,21 @@ app.use(cors());
 app.use('/api', scanRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/admin-logs', adminLogRoutes);
 
 // Basic route for wellness check
 app.get('/', (req, res) => {
   res.send('Barcode Reader API is running...');
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('SERVER ERROR:', err.stack);
+  res.status(500).json({
+    success: false,
+    message: 'Internal Server Error',
+    error: err.message
+  });
 });
 
 const PORT = process.env.PORT || 5000;

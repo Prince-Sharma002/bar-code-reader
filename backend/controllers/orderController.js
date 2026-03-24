@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const { createLogEvent } = require('./adminLogController');
 
 // Assume demo_user for current implementation
 const getUserId = (req) => req.user?.id || 'demo_user';
@@ -214,6 +215,9 @@ exports.updateStatus = async (req, res) => {
     if (!order) {
       return res.status(404).json({ ok: false, message: 'Order not found' });
     }
+
+    // Log the event
+    await createLogEvent('UPDATED_ORDER_STATUS', { orderId, oldStatus: req.body.oldStatus || 'unknown', newStatus: status }, req);
 
     res.json({ ok: true, order });
   } catch (error) {

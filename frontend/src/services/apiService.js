@@ -20,10 +20,18 @@ const saveToLocal = async (newScan) => {
     let history = [];
     if (existing) {
       const parsed = JSON.parse(existing);
-      // Handle both old array format and accidental object format
       history = Array.isArray(parsed) ? parsed : (parsed.data || []);
     }
-    const updated = [newScan, ...history].slice(0, 100); // Keep last 100
+    
+    // If scanning again or updating, prevent duplications of same scan
+    // (Check if a scan with same barcodeValue and very close timestamp exists)
+    const filtered = history.filter(s => {
+       if (newScan._id && s._id === newScan._id) return false;
+       if (!newScan._id && s.barcodeValue === newScan.barcodeValue && Math.abs(new Date(s.timestamp) - new Date(newScan.timestamp)) < 2000) return false;
+       return true;
+    });
+
+    const updated = [newScan, ...filtered].slice(0, 100);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     return updated;
   } catch (err) {
@@ -65,10 +73,15 @@ export const storeScan = async (barcodeValue, format, deviceId = 'unknown', lati
   // 3. Try to sync with backend
   try {
     const response = await apiClient.post('/scan', newScan);
+    if (response.data.success && response.data.data) {
+       // Update local storage with the backend version (which has _id)
+       await saveToLocal(response.data.data);
+       return { ...response.data, alreadyScanned };
+    }
     return { ...response.data, alreadyScanned };
   } catch (error) {
     console.warn('Sync failed, scan saved locally only.');
-    return { ok: true, alreadyScanned }; // Return success with duplicate info even if sync fails
+    return { ok: true, alreadyScanned };
   }
 };
 
@@ -102,10 +115,32 @@ export const getExportUrl = (ids = []) => {
 
 export const deleteScans = async (ids) => {
   try {
-    const response = await apiClient.delete('/scan-history', { data: { ids } });
+    console.log('API: Deleting scans with IDs:', ids);
+    // Use query params for DELETE to avoid issues with body stripping on some platforms/proxies
+    const response = await apiClient.delete(`/scan-history?ids=${ids.join(',')}`);
+    
+    console.log('API: Delete response:', response.data);
+    
+    // Also remove from local storage to keep them in sync
+    try {
+      const existing = await AsyncStorage.getItem(STORAGE_KEY);
+      if (existing) {
+        const history = JSON.parse(existing);
+        const historyArray = Array.isArray(history) ? history : (history.data || []);
+        const updated = historyArray.filter(s => {
+           const scanId = s._id || s.id;
+           return !ids.includes(scanId);
+        });
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        console.log('Local Storage: Cleared deleted items');
+      }
+    } catch (localErr) {
+      console.warn('Could not update local storage after delete:', localErr);
+    }
+
     return response.data;
   } catch (error) {
-    console.error('Error deleting scans:', error);
+    console.error('Error deleting scans:', error.response?.data || error.message);
     throw error;
   }
 };

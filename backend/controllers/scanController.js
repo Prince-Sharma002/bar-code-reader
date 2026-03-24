@@ -1,4 +1,5 @@
 const Scan = require('../models/Scan');
+const { createLogEvent } = require('./adminLogController');
 
 /**
  * @desc    Get all scans
@@ -83,6 +84,10 @@ exports.storeScan = async (req, res) => {
       type: type || 'unknown'
     });
 
+    console.log('--- SCAN CREATED ---', scan._id);
+    // Log the event
+    await createLogEvent('SCANNED_BARCODE', { barcodeValue, format, type: scan.type, scanId: scan._id }, req);
+
     res.status(201).json({
       success: true,
       alreadyScanned: !!alreadyScanned,
@@ -104,15 +109,25 @@ exports.storeScan = async (req, res) => {
  */
 exports.deleteScans = async (req, res) => {
   try {
-    const { ids } = req.body;
-    if (!ids || !Array.isArray(ids)) {
+    let { ids } = req.body;
+    if (!ids && req.query.ids) {
+       ids = req.query.ids.split(',');
+    }
+    
+    console.log('Received Deletion Request for IDs:', ids);
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'IDs array is required',
+        message: 'IDs array or comma-separated query param is required',
       });
     }
 
-    await Scan.deleteMany({ _id: { $in: ids } });
+    const result = await Scan.deleteMany({ _id: { $in: ids } });
+    console.log(`Deleted ${result.deletedCount} scans from DB`);
+
+    // Log the event
+    await createLogEvent('DELETED_SCANS', { deletedIds: ids, count: result.deletedCount }, req);
 
     res.status(200).json({
       success: true,

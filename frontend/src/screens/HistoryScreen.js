@@ -17,7 +17,7 @@ import { getScanHistory, getExportUrl, deleteScans } from '../services/apiServic
 import ScanHistoryItem from '../components/ScanHistoryItem';
 import Colors from '../constants/Colors';
 
-const HistoryScreen = () => {
+const HistoryScreen = ({ navigation }) => {
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,8 +116,11 @@ const HistoryScreen = () => {
   };
 
   const handleToggleSelect = (scan) => {
-    const id = scan._id;
-    if (!id) return;
+    const id = scan._id || scan.id;
+    if (!id) {
+       console.log('Cannot select item without ID:', scan);
+       return;
+    }
 
     if (selectedIds.includes(id)) {
       const updated = selectedIds.filter(sid => sid !== id);
@@ -141,13 +144,23 @@ const HistoryScreen = () => {
           text: 'Delete', 
           style: 'destructive',
           onPress: async () => {
+            console.log('Deleting IDs:', selectedIds);
             try {
-              await deleteScans(selectedIds);
-              setScans(prev => prev.filter(s => !selectedIds.includes(s._id)));
+              const res = await deleteScans(selectedIds);
+              console.log('Delete response from backend:', res);
+              
+              // Filter scans by _id or id
+              setScans(prev => prev.filter(s => {
+                 const scanId = s._id || s.id;
+                 return !selectedIds.includes(scanId);
+              }));
+              
               setSelectedIds([]);
               setIsSelectionMode(false);
+              Alert.alert('Success', `Deleted ${selectedIds.length} scans.`);
             } catch (err) {
-              Alert.alert('Error', 'Failed to delete scans.');
+              console.error('Delete failed:', err);
+              Alert.alert('Error', `Failed to delete: ${err.response?.data?.message || err.message}`);
             }
           }
         }

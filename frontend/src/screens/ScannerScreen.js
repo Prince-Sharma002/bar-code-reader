@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Vibration,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 // SDK 54: Use CameraView + useCameraPermissions from expo-camera
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -15,10 +16,8 @@ import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
-import { useState as ReactState } from 'react'; // To avoid conflict if any
 import { storeScan, lookupOrderBarcode, lookupProduct } from '../services/apiService';
 import * as ImagePicker from 'expo-image-picker';
-import { BarCodeScanner } from 'expo-barcode-scanner';
 import Colors from '../constants/Colors';
 
 // All barcode formats supported by CameraView in SDK 54
@@ -58,6 +57,11 @@ const ScannerScreen = () => {
   const slideAnim = useRef(new Animated.Value(40)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
 
+  // Web-only: refs for ZXing live camera
+  const webVideoRef = useRef(null);
+  const zxingReaderRef = useRef(null);
+  const scannedRef = useRef(false); // mirror of scanned for ZXing callback closure
+
   // Request location permission on load
   useEffect(() => {
     (async () => {
@@ -65,6 +69,69 @@ const ScannerScreen = () => {
       setLocationPermission(status === 'granted');
     })();
   }, []);
+
+  // ── Web: Start ZXing continuous scan when camera is ready ──────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    let isMounted = true;
+
+    const startWebScanner = async () => {
+      try {
+        const { BrowserMultiFormatReader } = await import('@zxing/library');
+        const reader = new BrowserMultiFormatReader();
+        zxingReaderRef.current = reader;
+
+        // Wait until the video element is rendered
+        const waitForVideo = () =>
+          new Promise((resolve) => {
+            const check = () => {
+              if (webVideoRef.current) resolve();
+              else setTimeout(check, 100);
+            };
+            check();
+          });
+        await waitForVideo();
+
+        // Get the default (first available) video device
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+        const deviceId = devices.length > 0 ? devices[0].deviceId : undefined;
+
+        reader.decodeFromVideoDevice(deviceId, webVideoRef.current, (result, err) => {
+          if (!isMounted) return;
+          if (result && !scannedRef.current) {
+            const rawFormat = result.getBarcodeFormat();
+            // ZXing returns numeric enum – convert to string label
+            const formatNames = [
+              'AZTEC', 'CODABAR', 'CODE_39', 'CODE_93', 'CODE_128',
+              'DATA_MATRIX', 'EAN_8', 'EAN_13', 'ITF', 'MAXICODE',
+              'PDF_417', 'QR_CODE', 'RSS_14', 'RSS_EXPANDED', 'UPC_A',
+              'UPC_E', 'UPC_EAN_EXTENSION',
+            ];
+            const formatLabel = formatNames[rawFormat] || 'UNKNOWN';
+            handleBarcodeScanned({ type: formatLabel, data: result.getText() });
+          }
+        });
+      } catch (e) {
+        console.warn('ZXing web scanner failed to start:', e);
+      }
+    };
+
+    startWebScanner();
+
+    return () => {
+      isMounted = false;
+      if (zxingReaderRef.current) {
+        try { zxingReaderRef.current.reset(); } catch (_) {}
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep scannedRef in sync so the ZXing closure can check it
+  useEffect(() => {
+    scannedRef.current = scanned;
+  }, [scanned]);
 
   // Looping top-to-bottom laser line animation
   useEffect(() => {
@@ -204,6 +271,7 @@ const ScannerScreen = () => {
 
   const handleScanAgain = () => {
     setScanned(false);
+    scannedRef.current = false; // allow ZXing web loop to fire again
     setScanResult(null);
     setAlreadyScannedAlert(false);
     setFoundOrders([]);
@@ -268,18 +336,10 @@ const ScannerScreen = () => {
            }
         }
         
-        // NATIVE OR FALLBACK (iOS/Android will use BarCodeScanner)
-        try {
-           const results = await BarCodeScanner.scanFromURLAsync(uri);
-           if (results && results.length > 0) {
-              const { type, data } = results[0];
-              handleBarcodeScanned({ type, data });
-           } else {
-              Alert.alert('No Barcode Found', 'Could not find any readable barcode in the selected image. Please try a clearer screenshot.');
-           }
-        } catch (nativeErr) {
-           console.log('Native BarCodeScanner failed:', nativeErr);
-           Alert.alert('Scan Failed', 'This device does not support image barcode scanning or the image is unreadable.');
+        // On Native, image scanning currently requires expo-barcode-scanner which is deprecated.
+        // For now, we only support Web-based image scanning.
+        if (require('react-native').Platform.OS !== 'web') {
+           Alert.alert('Gallery Scan', 'Scanning barcodes from the gallery is currently only supported on the web version. Please use the live camera for native scanning.');
         }
       }
     } catch (error) {
@@ -364,42 +424,89 @@ const ScannerScreen = () => {
 
       {/* Camera Viewfinder */}
       <View style={styles.cameraWrap}>
-        <CameraView
-          style={styles.camera}
-          facing="back"
-          enableTorch={torch}
-          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
-        >
-          {/* Overlay with Cutout effect */}
-          <View style={styles.overlay}>
-            <View style={styles.scanFrame}>
-              <View style={[styles.corner, styles.tl]} />
-              <View style={[styles.corner, styles.tr]} />
-              <View style={[styles.corner, styles.bl]} />
-              <View style={[styles.corner, styles.br]} />
+        {Platform.OS === 'web' ? (
+          // ── Web: ZXing reads from a plain <video> element (supports ALL barcode formats) ──
+          <View style={styles.camera}>
+            {/* eslint-disable-next-line react-native/no-inline-styles */}
+            <video
+              ref={webVideoRef}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+              muted
+              playsInline
+            />
+            {/* Overlay with Cutout effect */}
+            <View style={[styles.overlay, StyleSheet.absoluteFillObject]}>
+              <View style={styles.scanFrame}>
+                <View style={[styles.corner, styles.tl]} />
+                <View style={[styles.corner, styles.tr]} />
+                <View style={[styles.corner, styles.bl]} />
+                <View style={[styles.corner, styles.br]} />
 
-              {!scanned && (
-                <Animated.View
-                  style={[
-                    styles.scanLine,
-                    { 
-                      backgroundColor: Colors[scanType] || Colors.primary,
-                      shadowColor: Colors[scanType] || Colors.primary,
-                      transform: [{ translateY: scanLineAnim }] 
-                    },
-                  ]}
-                />
-              )}
+                {!scanned && (
+                  <Animated.View
+                    style={[
+                      styles.scanLine,
+                      {
+                        backgroundColor: Colors[scanType] || Colors.primary,
+                        shadowColor: Colors[scanType] || Colors.primary,
+                        transform: [{ translateY: scanLineAnim }],
+                      },
+                    ]}
+                  />
+                )}
 
-              {scanned && (
-                <View style={[styles.successOverlay, { backgroundColor: (Colors[scanType] || Colors.primary) + '20' }]}>
-                  <Text style={[styles.successCheck, { color: Colors[scanType] || Colors.primary }]}>✓</Text>
-                </View>
-              )}
+                {scanned && (
+                  <View style={[styles.successOverlay, { backgroundColor: (Colors[scanType] || Colors.primary) + '20' }]}>
+                    <Text style={[styles.successCheck, { color: Colors[scanType] || Colors.primary }]}>✓</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-        </CameraView>
+        ) : (
+          // ── Native (iOS / Android): use expo-camera CameraView ──────────────
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            enableTorch={torch}
+            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: BARCODE_TYPES }}
+          >
+            {/* Overlay with Cutout effect */}
+            <View style={styles.overlay}>
+              <View style={styles.scanFrame}>
+                <View style={[styles.corner, styles.tl]} />
+                <View style={[styles.corner, styles.tr]} />
+                <View style={[styles.corner, styles.bl]} />
+                <View style={[styles.corner, styles.br]} />
+
+                {!scanned && (
+                  <Animated.View
+                    style={[
+                      styles.scanLine,
+                      {
+                        backgroundColor: Colors[scanType] || Colors.primary,
+                        shadowColor: Colors[scanType] || Colors.primary,
+                        transform: [{ translateY: scanLineAnim }],
+                      },
+                    ]}
+                  />
+                )}
+
+                {scanned && (
+                  <View style={[styles.successOverlay, { backgroundColor: (Colors[scanType] || Colors.primary) + '20' }]}>
+                    <Text style={[styles.successCheck, { color: Colors[scanType] || Colors.primary }]}>✓</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </CameraView>
+        )}
       </View>
 
       {/* Scan Result Panel */}
