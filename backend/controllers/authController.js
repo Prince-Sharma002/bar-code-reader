@@ -81,7 +81,15 @@ exports.signup = async (req, res) => {
       message: 'Store Owner account created successfully',
       accessToken,
       refreshToken,
-      user: { id: newUser._id, email: newUser.email, first_name: newUser.first_name, role: 'Owner' }
+      user: { 
+        id: newUser._id, 
+        email: newUser.email, 
+        first_name: newUser.first_name, 
+        last_name: newUser.last_name, 
+        phone: newUser.phone, 
+        role: 'Owner',
+        status: newUser.status
+      }
     });
   } catch (error) {
     console.error('Signup Error:', error);
@@ -185,7 +193,10 @@ exports.login = async (req, res) => {
         id: user._id,
         email: user.email,
         role: roleName,
-        first_name: user.first_name
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        status: user.status
       }
     });
 
