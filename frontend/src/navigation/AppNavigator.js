@@ -7,6 +7,7 @@ import HistoryScreen from '../screens/HistoryScreen';
 import OrdersListScreen from '../screens/OrdersListScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
 import ItemVerificationScreen from '../screens/ItemVerificationScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../constants/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
@@ -24,14 +25,8 @@ const TabIcon = ({ focused, emoji, label, theme }) => (
 );
 
 const HeaderRight = () => {
-  const { logout, token } = useContext(AuthContext);
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}>
-      {token && (
-        <Text onPress={logout} style={{ marginRight: 15, color: '#aaa', fontWeight: 'bold' }}>
-          Log Out
-        </Text>
-      )}
       <ThemeToggle />
     </View>
   );
@@ -79,6 +74,13 @@ const TabNavigator = () => {
         component={HistoryScreen}
         options={{ 
           tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="◷" label="History" theme={theme} /> 
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ 
+          tabBarIcon: ({ focused }) => <TabIcon focused={focused} emoji="⍾" label="Profile" theme={theme} /> 
         }}
       />
     </Tab.Navigator>

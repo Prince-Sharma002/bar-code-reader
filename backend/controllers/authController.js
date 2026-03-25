@@ -249,3 +249,54 @@ exports.logout = async (req, res) => {
     res.status(500).json({ error: 'Server error during logout' });
   }
 };
+
+// Get Profile
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password_hash');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json({ user });
+  } catch (error) {
+    console.error('Get Profile Error:', error);
+    res.status(500).json({ error: 'Server error fetching profile' });
+  }
+};
+
+// Update Profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const { first_name, last_name, phone } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { first_name, last_name, phone },
+      { new: true, runValidators: true }
+    ).select('-password_hash');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Also attach their role to the response
+    const userRoleLink = await UserRole.findOne({ user_id: user._id }).populate('role_id');
+    const roleName = userRoleLink && userRoleLink.role_id ? userRoleLink.role_id.name : 'User';
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        role: roleName,
+        status: user.status
+      }
+    });
+
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    res.status(500).json({ error: 'Server error updating profile' });
+  }
+};

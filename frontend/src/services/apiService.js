@@ -62,6 +62,16 @@ export const authSignup = async (userData) => {
   return res.data;
 };
 
+export const getProfile = async () => {
+  const res = await apiClient.get('/auth/profile');
+  return res.data;
+};
+
+export const updateProfile = async (profileData) => {
+  const res = await apiClient.put('/auth/profile', profileData);
+  return res.data;
+};
+
 export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null, type = 'unknown') => {
   const newScan = {
     barcodeValue,

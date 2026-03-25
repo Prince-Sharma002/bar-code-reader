@@ -17,4 +17,10 @@ router.post('/refresh-token', authController.refreshToken);
 // Logout (invalidate refresh token)
 router.post('/logout', authController.logout);
 
+const { authMiddleware } = require('../middleware/auth');
+
+// Get/Update profile information
+router.get('/profile', authMiddleware, authController.getProfile);
+router.put('/profile', authMiddleware, authController.updateProfile);
+
 module.exports = router;
