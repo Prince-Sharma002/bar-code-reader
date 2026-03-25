@@ -6,6 +6,7 @@ const scanRoutes = require('./routes/scanRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const productRoutes = require('./routes/productRoutes');
 const adminLogRoutes = require('./routes/adminLogRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 // Load env vars
 dotenv.config();
@@ -26,6 +27,7 @@ app.use('/api', scanRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin-logs', adminLogRoutes);
+app.use('/api/auth', authRoutes);
 
 // Basic route for wellness check
 app.get('/', (req, res) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, Text, StyleSheet, Platform, SafeAreaView } from 'react-native';
@@ -9,6 +9,9 @@ import OrderDetailScreen from '../screens/OrderDetailScreen';
 import ItemVerificationScreen from '../screens/ItemVerificationScreen';
 import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../constants/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -20,11 +23,19 @@ const TabIcon = ({ focused, emoji, label, theme }) => (
   </View>
 );
 
-const HeaderRight = () => (
-  <View style={{ marginRight: 15 }}>
-    <ThemeToggle />
-  </View>
-);
+const HeaderRight = () => {
+  const { logout, token } = useContext(AuthContext);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 15 }}>
+      {token && (
+        <Text onPress={logout} style={{ marginRight: 15, color: '#aaa', fontWeight: 'bold' }}>
+          Log Out
+        </Text>
+      )}
+      <ThemeToggle />
+    </View>
+  );
+};
 
 const TabNavigator = () => {
   const { theme } = useTheme();
@@ -76,6 +87,15 @@ const TabNavigator = () => {
 
 const AppNavigator = () => {
   const { theme } = useTheme();
+  const { token, loading } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
+        <Text style={{ color: theme.text }}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator 
@@ -91,9 +111,18 @@ const AppNavigator = () => {
         headerRight: () => <HeaderRight />,
       }}
     >
-      <Stack.Screen name="MainTabs" component={TabNavigator} options={{ headerShown: false }} />
-      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
-      <Stack.Screen name="ItemVerification" component={ItemVerificationScreen} options={{ title: 'Verify Item' }} />
+      {token ? (
+        <>
+          <Stack.Screen name="MainTabs" component={TabNavigator} options={{ headerShown: false }} />
+          <Stack.Screen name="OrderDetail" component={OrderDetailScreen} options={{ title: 'Order Details' }} />
+          <Stack.Screen name="ItemVerification" component={ItemVerificationScreen} options={{ title: 'Verify Item' }} />
+        </>
+      ) : (
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+        </>
+      )}
     </Stack.Navigator>
   );
 };

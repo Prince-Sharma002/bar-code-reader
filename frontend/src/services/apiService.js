@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ CHANGE THIS to your Render URL after deployment
 // Example: 'https://barcode-reader-api.onrender.com/api'
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.3:5000/api';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
 const STORAGE_KEY = '@scans_history';
 
 const apiClient = axios.create({
@@ -13,6 +13,19 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+apiClient.interceptors.request.use(
+  async (config) => {
+    const token = await AsyncStorage.getItem('@access_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 const saveToLocal = async (newScan) => {
   try {
@@ -37,6 +50,16 @@ const saveToLocal = async (newScan) => {
   } catch (err) {
     console.error('Local save error:', err);
   }
+};
+
+export const authLogin = async (email, password) => {
+  const res = await apiClient.post('/auth/login', { email, password });
+  return res.data;
+};
+
+export const authSignup = async (userData) => {
+  const res = await apiClient.post('/auth/signup', userData);
+  return res.data;
 };
 
 export const storeScan = async (barcodeValue, format, deviceId = 'unknown', latitude = null, longitude = null, type = 'unknown') => {
