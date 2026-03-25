@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { storeScan, lookupOrderBarcode, lookupProduct } from '../services/apiService';
 import * as ImagePicker from 'expo-image-picker';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const BARCODE_TYPES = [
   'qr', 'ean13', 'ean8', 'code128', 'code39', 'code93',
@@ -26,6 +26,7 @@ const BARCODE_TYPES = [
 ];
 
 const ScannerScreen = () => {
+  const { theme, isDarkMode } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [locationPermission, setLocationPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
@@ -44,6 +45,8 @@ const ScannerScreen = () => {
   const webVideoRef = useRef(null);
   const zxingReaderRef = useRef(null);
   const scannedRef = useRef(false);
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     (async () => {
@@ -166,7 +169,7 @@ const ScannerScreen = () => {
 
   if (!permission) return (
     <View style={styles.centered}>
-      <ActivityIndicator color={Colors.primary} />
+      <ActivityIndicator color={theme.primary} />
     </View>
   );
 
@@ -201,7 +204,7 @@ const ScannerScreen = () => {
             style={[styles.smallAction, torch && styles.smallActionActive]} 
             onPress={() => setTorch(!torch)}
           >
-            <Text style={[styles.actionEmoji, torch && { color: Colors.primary }]}>{torch ? '⏻' : '⏼'}</Text>
+            <Text style={[styles.actionEmoji, torch && { color: theme.primary }]}>{torch ? '⏻' : '⏼'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.smallAction} onPress={handleOpenGallery}>
             <Text style={styles.actionEmoji}>◖</Text>
@@ -213,7 +216,7 @@ const ScannerScreen = () => {
         <TextInput
           style={styles.manualInput}
           placeholder="Manual input..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={theme.textMuted}
           value={manualCode}
           onChangeText={setManualCode}
           onSubmitEditing={() => manualCode.trim() && handleBarcodeScanned({ data: manualCode.trim(), type: 'MANUAL' })}
@@ -258,8 +261,8 @@ const ScannerScreen = () => {
       {scanResult && (
         <Animated.View style={[styles.resultPanel, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.resultHeader}>
-            <View style={[styles.typeIconBox, { backgroundColor: `${Colors[scanType] || Colors.primary}15` }]}>
-              <Text style={{ fontSize: 24, color: Colors[scanType] || Colors.primary }}>
+            <View style={[styles.typeIconBox, { backgroundColor: `${theme[scanType] || theme.primary}15` }]}>
+              <Text style={{ fontSize: 24, color: theme[scanType] || theme.primary }}>
                 {scanType === 'return' ? '↩' : scanType === 'product' ? '◱' : '◎'}
               </Text>
             </View>
@@ -269,8 +272,8 @@ const ScannerScreen = () => {
                 {scanType === 'product' ? foundProduct?.name : scanResult.value}
               </Text>
             </View>
-            <View style={[styles.statusBadge, { borderColor: `${Colors[scanType] || Colors.primary}40` }]}>
-              <Text style={[styles.statusBadgeText, { color: Colors[scanType] || Colors.primary }]}>
+            <View style={[styles.statusBadge, { borderColor: `${theme[scanType] || theme.primary}40` }]}>
+              <Text style={[styles.statusBadgeText, { color: theme[scanType] || theme.primary }]}>
                 {isSaving ? 'SYNCING' : 'VERIFIED'}
               </Text>
             </View>
@@ -284,6 +287,7 @@ const ScannerScreen = () => {
                   style={styles.orderItem}
                   onPress={() => navigation.navigate('OrderDetail', { orderId: order._id })}
                 >
+
                   <Text style={styles.orderItemText}>Order #{order.order_number}</Text>
                   <Text style={styles.orderItemLink}>VIEW ↗</Text>
                 </TouchableOpacity>
@@ -300,37 +304,37 @@ const ScannerScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centered: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 },
+const createStyles = (theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  centered: { flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', padding: 32 },
   
   header: { 
     paddingTop: 64, paddingHorizontal: 24, paddingBottom: 20, 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' 
   },
-  headerLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  headerLabel: { fontSize: 10, color: theme.textMuted, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase' },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: theme.text, marginTop: 4 },
   headerActions: { flexDirection: 'row', gap: 12 },
   smallAction: { 
-    width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, 
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' 
+    width: 44, height: 44, borderRadius: 14, backgroundColor: theme.surface, 
+    borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' 
   },
-  smallActionActive: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}10` },
-  actionEmoji: { fontSize: 20, color: Colors.textSecondary },
+  smallActionActive: { borderColor: theme.primary, backgroundColor: `${theme.primary}10` },
+  actionEmoji: { fontSize: 20, color: theme.textSecondary },
 
   manualEntry: { 
     flexDirection: 'row', paddingHorizontal: 24, gap: 12, marginBottom: 24, 
-    backgroundColor: 'rgba(255,255,255,0.03)', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border
+    backgroundColor: theme.isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border
   },
   manualInput: { 
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 12, paddingHorizontal: 16, 
-    height: 48, color: Colors.text, fontSize: 13, fontWeight: '700', borderWidth: 1, borderColor: `${Colors.border}80`
+    flex: 1, backgroundColor: theme.isDarkMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.8)', borderRadius: 12, paddingHorizontal: 16, 
+    height: 48, color: theme.text, fontSize: 13, fontWeight: '700', borderWidth: 1, borderColor: `${theme.border}80`
   },
   manualBtn: { 
-    backgroundColor: Colors.surfaceElevated, borderRadius: 12, paddingHorizontal: 20, 
-    justifyContent: 'center', borderWidth: 1, borderColor: Colors.primary
+    backgroundColor: theme.surfaceElevated, borderRadius: 12, paddingHorizontal: 20, 
+    justifyContent: 'center', borderWidth: 1, borderColor: theme.primary
   },
-  manualBtnText: { color: Colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  manualBtnText: { color: theme.primary, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
 
   viewfinderContainer: { paddingHorizontal: 24, paddingBottom: 24, flex: 1 },
   viewfinder: { 
@@ -339,22 +343,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden', 
     backgroundColor: '#000', 
     borderWidth: 1, 
-    borderColor: Colors.border,
+    borderColor: theme.border,
     justifyContent: 'center'
   },
   webVideo: { width: '100%', height: '100%', objectFit: 'cover' },
   cameraView: { flex: 1 },
   scannerOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
   scanTarget: { width: 220, height: 220 },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: Colors.primary, borderWidth: 5 },
+  corner: { position: 'absolute', width: 40, height: 40, borderColor: theme.primary, borderWidth: 5 },
   tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 16 },
   tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 16 },
   bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 16 },
   br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 16 },
   scanLine: { 
     position: 'absolute', left: 10, right: 10, height: 3, 
-    backgroundColor: Colors.primary, 
-    shadowColor: Colors.primary, 
+    backgroundColor: theme.primary, 
+    shadowColor: theme.primary, 
     shadowOpacity: 1, 
     shadowRadius: 15,
     elevation: 5
@@ -362,35 +366,36 @@ const styles = StyleSheet.create({
 
   resultPanel: { 
     position: 'absolute', bottom: 30, left: 24, right: 24, 
-    backgroundColor: Colors.surface, borderRadius: 24, padding: 20, 
-    borderWidth: 1, borderColor: Colors.border, elevation: 12 
+    backgroundColor: theme.surface, borderRadius: 24, padding: 20, 
+    borderWidth: 1, borderColor: theme.border, elevation: 12 
   },
   resultHeader: { flexDirection: 'row', gap: 16, alignItems: 'center' },
   typeIconBox: { width: 50, height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  metaLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1 },
-  resultMainText: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 2 },
+  metaLabel: { fontSize: 9, fontWeight: '800', color: theme.textMuted, letterSpacing: 1 },
+  resultMainText: { fontSize: 16, fontWeight: '800', color: theme.text, marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   statusBadgeText: { fontSize: 10, fontWeight: '800' },
   
-  orderList: { marginTop: 16, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16, gap: 10 },
+  orderList: { marginTop: 16, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 16, gap: 10 },
   orderItem: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    backgroundColor: Colors.surfaceElevated, padding: 12, borderRadius: 12 
+    backgroundColor: theme.surfaceElevated, padding: 12, borderRadius: 12 
   },
-  orderItemText: { color: Colors.text, fontWeight: '700', fontSize: 14 },
-  orderItemLink: { color: Colors.primary, fontSize: 11, fontWeight: '800' },
+  orderItemText: { color: theme.text, fontWeight: '700', fontSize: 14 },
+  orderItemLink: { color: theme.primary, fontSize: 11, fontWeight: '800' },
 
   resetBtn: { 
-    backgroundColor: Colors.primary, borderRadius: 16, height: 56, 
+    backgroundColor: theme.primary, borderRadius: 16, height: 56, 
     alignItems: 'center', justifyContent: 'center', marginTop: 20 
   },
-  resetBtnText: { color: Colors.background, fontSize: 15, fontWeight: '800' },
+  resetBtnText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 
   lockBox: { alignItems: 'center', padding: 24 },
-  lockIcon: { fontSize: 64, color: Colors.border, marginBottom: 16 },
-  permissionBtn: { backgroundColor: Colors.primary, paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16 },
-  permissionBtnText: { color: Colors.background, fontWeight: '900', fontSize: 14 },
-  statusText: { color: Colors.textMuted, textAlign: 'center', marginBottom: 24, lineHeight: 20 }
+  lockIcon: { fontSize: 64, color: theme.border, marginBottom: 16 },
+  errorTitle: { fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 8 },
+  permissionBtn: { backgroundColor: theme.primary, paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16 },
+  permissionBtnText: { color: '#FFF', fontWeight: '900', fontSize: 14 },
+  statusText: { color: theme.textMuted, textAlign: 'center', marginBottom: 24, lineHeight: 20 }
 });
 
 export default ScannerScreen;

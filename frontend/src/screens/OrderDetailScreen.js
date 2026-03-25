@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { getOrderDetails, updateOrderStatus } from '../services/apiService';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const OrderDetailScreen = () => {
+  const { theme } = useTheme();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
   const route = useRoute();
   const { orderId } = route.params || {};
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fetchOrderDetails = async () => {
     try {
@@ -63,18 +66,18 @@ const OrderDetailScreen = () => {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'packed': case 'delivered': case 'ready_to_ship': return Colors.order;
-      case 'pending': return Colors.duplicate;
-      case 'returned': return Colors.return;
-      case 'processing': return Colors.product;
-      default: return Colors.textMuted;
+      case 'packed': case 'delivered': case 'ready_to_ship': return theme.order;
+      case 'pending': return theme.duplicate;
+      case 'returned': return theme.return;
+      case 'processing': return theme.product;
+      default: return theme.textMuted;
     }
   };
 
   if (loading && !order) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.primary} />
+        <ActivityIndicator color={theme.primary} />
       </View>
     );
   }
@@ -85,14 +88,6 @@ const OrderDetailScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backIcon}>◂</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Order Ticket</Text>
-        <View style={{ width: 44 }}/>
-      </View>
-      
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.mainCard}>
           <View style={styles.ticketHeader}>
@@ -166,47 +161,40 @@ const OrderDetailScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centered: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  header: { 
-    flexDirection: 'row', paddingTop: 64, paddingHorizontal: 20, 
-    paddingBottom: 20, alignItems: 'center', justifyContent: 'space-between',
-    borderBottomWidth: 1, borderBottomColor: Colors.border
-  },
-  backBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  backIcon: { fontSize: 20, color: Colors.textSecondary },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: 1 },
+const createStyles = (theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  centered: { flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 24, paddingBottom: 120 },
-  mainCard: { backgroundColor: Colors.surface, borderRadius: 28, padding: 24, borderWidth: 1, borderColor: Colors.border },
+  mainCard: { backgroundColor: theme.surface, borderRadius: 28, padding: 24, borderWidth: 1, borderColor: theme.border },
   ticketHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  label: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5, marginBottom: 8 },
-  orderId: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  label: { fontSize: 10, fontWeight: '800', color: theme.textMuted, letterSpacing: 1.5, marginBottom: 8 },
+  orderId: { fontSize: 22, fontWeight: '800', color: theme.text },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
   statusText: { fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
   metaRow: { flexDirection: 'row', gap: 40, marginBottom: 24 },
-  metaValue: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary },
-  divider: { height: 1.5, backgroundColor: Colors.border, marginVertical: 24, borderStyle: 'dashed' },
-  customerName: { fontSize: 17, fontWeight: '800', color: Colors.text, marginBottom: 6 },
-  customerAddr: { fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 4 },
-  customerPhone: { fontSize: 13, color: Colors.primary, fontWeight: '700' },
+  metaValue: { fontSize: 14, fontWeight: '700', color: theme.textSecondary },
+  divider: { height: 1.5, backgroundColor: theme.border, marginVertical: 24, borderStyle: 'dashed' },
+  customerName: { fontSize: 17, fontWeight: '800', color: theme.text, marginBottom: 6 },
+  customerAddr: { fontSize: 13, color: theme.textSecondary, lineHeight: 20, marginBottom: 4 },
+  customerPhone: { fontSize: 13, color: theme.primary, fontWeight: '700' },
   sectionHeader: { marginTop: 32, marginBottom: 16, paddingHorizontal: 4 },
-  itemCard: { backgroundColor: Colors.surface, padding: 20, borderRadius: 20, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
-  itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 12 },
+  itemCard: { backgroundColor: theme.surface, padding: 20, borderRadius: 20, marginBottom: 16, borderWidth: 1, borderColor: theme.border },
+  itemName: { fontSize: 15, fontWeight: '700', color: theme.text, marginBottom: 12 },
   itemFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemSku: { fontSize: 11, color: Colors.textMuted, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  qtyBox: { backgroundColor: `${Colors.primary}15`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  qtyText: { fontSize: 14, fontWeight: '900', color: Colors.primary },
+  itemSku: { fontSize: 11, color: theme.textMuted, fontWeight: '700', backgroundColor: theme.isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  qtyBox: { backgroundColor: `${theme.primary}15`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  qtyText: { fontSize: 14, fontWeight: '900', color: theme.primary },
   footer: { 
     position: 'absolute', bottom: 0, left: 0, right: 0, 
-    backgroundColor: Colors.background, padding: 24, borderTopWidth: 1, 
-    borderTopColor: Colors.border, flexDirection: 'row', gap: 12 
+    backgroundColor: theme.background, padding: 24, borderTopWidth: 1, 
+    borderTopColor: theme.border, flexDirection: 'row', gap: 12 
   },
-  altBtn: { flex: 1, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  altBtnText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
-  primaryBtn: { flex: 1.5, backgroundColor: Colors.primary, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  primaryBtnText: { color: Colors.background, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  primaryBtnDisabled: { backgroundColor: Colors.surfaceElevated, opacity: 0.5 }
+  altBtn: { flex: 1, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  altBtnText: { color: theme.textSecondary, fontSize: 13, fontWeight: '800', letterSpacing: 1 },
+  primaryBtn: { flex: 1.5, backgroundColor: theme.primary, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  primaryBtnDisabled: { backgroundColor: theme.surfaceElevated, opacity: 0.5 }
 });
 
 export default OrderDetailScreen;
+

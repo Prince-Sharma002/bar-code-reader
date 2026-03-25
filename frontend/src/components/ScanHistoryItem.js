@@ -1,6 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const TYPE_ICONS = {
   order: '◎',
@@ -10,8 +10,11 @@ const TYPE_ICONS = {
 };
 
 const ScanHistoryItem = ({ scan, index, isSelected, onSelect, isSelectionMode }) => {
+  const { theme } = useTheme();
   const slideAnim = useRef(new Animated.Value(40)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => {
     Animated.parallel([
@@ -26,7 +29,7 @@ const ScanHistoryItem = ({ scan, index, isSelected, onSelect, isSelectionMode })
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' • ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  const accentColor = Colors[scan.type] || Colors.primary;
+  const accentColor = theme[scan.type] || theme.primary;
   const typeIcon = TYPE_ICONS[scan.type] || '📄';
 
   return (
@@ -73,13 +76,13 @@ const ScanHistoryItem = ({ scan, index, isSelected, onSelect, isSelectionMode })
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     marginBottom: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     overflow: 'hidden',
   },
   touchable: {
@@ -92,12 +95,12 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: theme.border,
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center'
   },
-  checkInner: { color: Colors.background, fontSize: 14, fontWeight: '900' },
+  checkInner: { color: theme.background, fontSize: 14, fontWeight: '900' },
   iconBox: {
     width: 48,
     height: 48,
@@ -108,13 +111,14 @@ const styles = StyleSheet.create({
   iconText: { fontSize: 22, fontWeight: '600' },
   details: { flex: 1, marginLeft: 16 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  barcode: { fontSize: 15, fontWeight: '800', color: Colors.text, flex: 1, marginRight: 8 },
-  typeLabel: { fontSize: 8, fontWeight: '900', color: Colors.textMuted, letterSpacing: 1 },
+  barcode: { fontSize: 15, fontWeight: '800', color: theme.text, flex: 1, marginRight: 8 },
+  typeLabel: { fontSize: 8, fontWeight: '900', color: theme.textMuted, letterSpacing: 1 },
   bottomRow: { flexDirection: 'row', alignItems: 'center' },
   format: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.border, marginHorizontal: 8 },
-  date: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
-  chevron: { color: Colors.border, fontSize: 18, marginLeft: 8 },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.border, marginHorizontal: 8 },
+  date: { fontSize: 11, color: theme.textSecondary, fontWeight: '600' },
+  chevron: { color: theme.border, fontSize: 18, marginLeft: 8 },
 });
 
 export default ScanHistoryItem;
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getScanHistory, getExportUrl, deleteScans } from '../services/apiService';
 import ScanHistoryItem from '../components/ScanHistoryItem';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const HistoryScreen = ({ navigation }) => {
+  const { theme } = useTheme();
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -29,6 +30,8 @@ const HistoryScreen = ({ navigation }) => {
   
   const [filterType, setFilterType] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fetchHistory = useCallback(async (searchQuery = '') => {
     try {
@@ -137,7 +140,7 @@ const HistoryScreen = ({ navigation }) => {
 
             {isSelectionMode && (
               <TouchableOpacity style={[styles.circleBtn, styles.dangerBtn]} onPress={handleDeleteSelected}>
-                <Text style={[styles.btnIcon, { color: Colors.return }]}>◿</Text>
+                <Text style={[styles.btnIcon, { color: theme.error }]}>◿</Text>
               </TouchableOpacity>
             )}
             
@@ -180,7 +183,7 @@ const HistoryScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Filter by barcode..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={theme.textMuted}
                   value={search}
                   onChangeText={setSearch}
                   onSubmitEditing={() => fetchHistory(search)}
@@ -195,7 +198,7 @@ const HistoryScreen = ({ navigation }) => {
 
       {loading && !refreshing ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={Colors.primary} />
+          <ActivityIndicator color={theme.primary} />
         </View>
       ) : (
         <FlatList
@@ -211,7 +214,7 @@ const HistoryScreen = ({ navigation }) => {
           }
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
           }
         />
       )}
@@ -219,57 +222,58 @@ const HistoryScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingTop: 64, paddingBottom: 20, paddingHorizontal: 24 },
+const createStyles = (theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  header: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 24 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
-  headerSub: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  headerSub: { fontSize: 10, fontWeight: '800', color: theme.textMuted, letterSpacing: 1.5 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: theme.text, marginTop: 4 },
   actionRow: { flexDirection: 'row', gap: 10 },
   
   glassBtn: { 
-    backgroundColor: Colors.surface, paddingHorizontal: 16, height: 44, 
-    borderRadius: 14, borderWidth: 1, borderColor: Colors.border, 
+    backgroundColor: theme.surface, paddingHorizontal: 16, height: 44, 
+    borderRadius: 14, borderWidth: 1, borderColor: theme.border, 
     justifyContent: 'center', alignItems: 'center' 
   },
-  glassBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 1 },
+  glassBtnText: { color: theme.primary, fontWeight: '900', fontSize: 11, letterSpacing: 1 },
   circleBtn: { 
-    width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, 
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' 
+    width: 44, height: 44, borderRadius: 14, backgroundColor: theme.surface, 
+    borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' 
   },
-  circleBtnActive: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}10` },
-  btnIcon: { fontSize: 18, color: Colors.textSecondary },
-  dangerBtn: { borderColor: `${Colors.return}40` },
+  circleBtnActive: { borderColor: theme.primary, backgroundColor: `${theme.primary}10` },
+  btnIcon: { fontSize: 18, color: theme.textSecondary },
+  dangerBtn: { borderColor: `${theme.error}40` },
   btnDisabled: { opacity: 0.5 },
 
   filterBox: { marginTop: 8, gap: 16 },
   chipScroll: { marginHorizontal: -24, paddingHorizontal: 24 },
   chip: { 
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, 
-    backgroundColor: Colors.surface, marginRight: 10, borderWidth: 1, borderColor: Colors.border 
+    backgroundColor: theme.surface, marginRight: 10, borderWidth: 1, borderColor: theme.border 
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '800' },
-  chipTextActive: { color: Colors.background },
+  chipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+  chipText: { color: theme.textSecondary, fontSize: 12, fontWeight: '800' },
+  chipTextActive: { color: '#FFF' },
 
   searchRow: { flexDirection: 'row', gap: 12 },
   searchInput: { 
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, 
-    paddingHorizontal: 16, height: 48, color: Colors.text, fontSize: 14, 
-    borderWidth: 1, borderColor: Colors.border 
+    flex: 1, backgroundColor: theme.isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', borderRadius: 14, 
+    paddingHorizontal: 16, height: 48, color: theme.text, fontSize: 14, 
+    borderWidth: 1, borderColor: theme.border 
   },
   applyBtn: { 
-    backgroundColor: Colors.surfaceElevated, paddingHorizontal: 20, 
-    borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: Colors.primary 
+    backgroundColor: theme.surfaceElevated, paddingHorizontal: 20, 
+    borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: theme.primary 
   },
-  applyBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11 },
+  applyBtnText: { color: theme.primary, fontWeight: '900', fontSize: 11 },
 
   list: { paddingHorizontal: 24, paddingBottom: 40 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100, paddingHorizontal: 40 },
-  emptyIcon: { fontSize: 64, color: Colors.border, marginBottom: 20, textAlign: 'center' },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8, textAlign: 'center' },
-  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  emptyIcon: { fontSize: 64, color: theme.border, marginBottom: 20, textAlign: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 8, textAlign: 'center' },
+  emptyText: { fontSize: 14, color: theme.textMuted, textAlign: 'center', lineHeight: 22 },
 });
 
 export default HistoryScreen;
+

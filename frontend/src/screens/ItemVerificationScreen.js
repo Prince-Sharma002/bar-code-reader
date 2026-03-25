@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Vibration, TextInput } from 'react-native';
 import { verifyOrderItems, updateOrderStatus, getOrderDetails } from '../services/apiService';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const ItemVerificationScreen = () => {
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
   const [verificationResult, setVerificationResult] = useState(null);
@@ -19,6 +20,8 @@ const ItemVerificationScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { orderId } = route.params || {};
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   useEffect(() => { fetchOrder(); }, [orderId]);
 
@@ -83,7 +86,7 @@ const ItemVerificationScreen = () => {
   if (loading && !order) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.primary} />
+        <ActivityIndicator color={theme.primary} />
       </View>
     );
   }
@@ -114,14 +117,6 @@ const ItemVerificationScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.backIcon}>◂</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verification Hub</Text>
-        <View style={{ width: 44 }}/>
-      </View>
-      
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.summaryCard}>
           <Text style={styles.subLabel}>ORDER #{order?.order_number}</Text>
@@ -153,7 +148,7 @@ const ItemVerificationScreen = () => {
             <TextInput
               style={styles.manualInput}
               placeholder="Manual SKU/Barcode..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={theme.textMuted}
               value={manualCode}
               onChangeText={setManualCode}
               onSubmitEditing={() => {
@@ -187,7 +182,7 @@ const ItemVerificationScreen = () => {
             </View>
             <View style={styles.itemFooter}>
               <Text style={styles.itemSku}>SKU: {item.sku}</Text>
-              <Text style={[styles.statusTag, item.verified && { color: Colors.order }]}>
+              <Text style={[styles.statusTag, item.verified && { color: theme.order }]}>
                 {item.verified ? 'VERIFIED Match • ⬢' : 'Awaiting Scan • ⬡'}
               </Text>
             </View>
@@ -219,59 +214,52 @@ const ItemVerificationScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centered: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  header: { 
-    flexDirection: 'row', paddingTop: 64, paddingHorizontal: 20, 
-    paddingBottom: 20, alignItems: 'center', justifyContent: 'space-between',
-    borderBottomWidth: 1, borderBottomColor: Colors.border
-  },
-  backBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
-  backIcon: { fontSize: 20, color: Colors.textSecondary },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: 1 },
+const createStyles = (theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  centered: { flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 24, paddingBottom: 120 },
-  summaryCard: { backgroundColor: Colors.surface, borderRadius: 28, padding: 24, borderWidth: 1, borderColor: Colors.border, marginBottom: 32 },
-  subLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
+  summaryCard: { backgroundColor: theme.surface, borderRadius: 28, padding: 24, borderWidth: 1, borderColor: theme.border, marginBottom: 32 },
+  subLabel: { fontSize: 10, color: theme.textMuted, fontWeight: '800', letterSpacing: 1.5, marginBottom: 12 },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  progressTitle: { fontSize: 13, color: Colors.textSecondary, fontWeight: '700', marginBottom: 4 },
-  progressCount: { fontSize: 28, fontWeight: '800', color: Colors.text },
-  badge: { backgroundColor: `${Colors.textMuted}10`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
-  badgeSuccess: { backgroundColor: `${Colors.order}15`, borderColor: `${Colors.order}40` },
-  badgeText: { fontSize: 9, fontWeight: '900', color: Colors.textMuted, letterSpacing: 0.5 },
-  badgeTextSuccess: { color: Colors.order },
-  primaryAction: { backgroundColor: Colors.primary, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  primaryActionText: { color: Colors.background, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  progressTitle: { fontSize: 13, color: theme.textSecondary, fontWeight: '700', marginBottom: 4 },
+  progressCount: { fontSize: 28, fontWeight: '800', color: theme.text },
+  badge: { backgroundColor: theme.isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: theme.border },
+  badgeSuccess: { backgroundColor: `${theme.order}15`, borderColor: `${theme.order}40` },
+  badgeText: { fontSize: 9, fontWeight: '900', color: theme.textMuted, letterSpacing: 0.5 },
+  badgeTextSuccess: { color: theme.order },
+  primaryAction: { backgroundColor: theme.primary, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  primaryActionText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
   manualEntry: { flexDirection: 'row', marginTop: 16, gap: 12 },
-  manualInput: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, paddingHorizontal: 16, color: Colors.text, fontSize: 14, borderWidth: 1, borderColor: Colors.border, height: 48 },
-  manualBtn: { backgroundColor: Colors.surfaceElevated, paddingHorizontal: 20, borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: Colors.primary },
-  manualBtnText: { color: Colors.primary, fontWeight: '900', fontSize: 11 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginBottom: 16, marginLeft: 4 },
-  itemCard: { backgroundColor: Colors.surface, padding: 20, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: Colors.border },
-  itemCardSuccess: { borderColor: `${Colors.order}30`, backgroundColor: `${Colors.order}05` },
+  manualInput: { flex: 1, backgroundColor: theme.isDarkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', borderRadius: 14, paddingHorizontal: 16, color: theme.text, fontSize: 14, borderWidth: 1, borderColor: theme.border, height: 48 },
+  manualBtn: { backgroundColor: theme.surfaceElevated, paddingHorizontal: 20, borderRadius: 14, justifyContent: 'center', borderWidth: 1, borderColor: theme.primary },
+  manualBtnText: { color: theme.primary, fontWeight: '900', fontSize: 11 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: theme.text, marginBottom: 16, marginLeft: 4 },
+  itemCard: { backgroundColor: theme.surface, padding: 20, borderRadius: 24, marginBottom: 16, borderWidth: 1, borderColor: theme.border },
+  itemCardSuccess: { borderColor: `${theme.order}30`, backgroundColor: `${theme.order}05` },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  itemName: { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1, marginRight: 8 },
-  itemQty: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  itemName: { fontSize: 15, fontWeight: '700', color: theme.text, flex: 1, marginRight: 8 },
+  itemQty: { fontSize: 18, fontWeight: '800', color: theme.primary },
   itemFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemSku: { fontSize: 11, color: Colors.textMuted, fontWeight: '700' },
-  statusTag: { fontSize: 11, fontWeight: '800', color: Colors.textMuted },
-  errorTitle: { fontSize: 14, fontWeight: '800', color: Colors.return, marginTop: 16, marginBottom: 12, marginLeft: 4 },
-  errorCard: { backgroundColor: `${Colors.return}10`, padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: `${Colors.return}30` },
-  errorText: { color: Colors.return, fontWeight: '800', fontSize: 13 },
+  itemSku: { fontSize: 11, color: theme.textMuted, fontWeight: '700' },
+  statusTag: { fontSize: 11, fontWeight: '800', color: theme.textMuted },
+  errorTitle: { fontSize: 14, fontWeight: '800', color: theme.error, marginTop: 16, marginBottom: 12, marginLeft: 4 },
+  errorCard: { backgroundColor: `${theme.error}10`, padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: `${theme.error}30` },
+  errorText: { color: theme.error, fontWeight: '800', fontSize: 13 },
   scanOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center' },
   scanInstructions: { color: '#FFF', fontSize: 16, fontWeight: '900', letterSpacing: 2, marginBottom: 40 },
   targetBox: { width: 280, height: 280, borderRadius: 32 },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: Colors.primary, borderWidth: 6 },
+  corner: { position: 'absolute', width: 40, height: 40, borderColor: theme.primary, borderWidth: 6 },
   tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 24 },
   tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 24 },
   bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 24 },
   br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 24 },
   cancelBtn: { marginTop: 60, height: 56, paddingHorizontal: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   cancelText: { color: '#FFF', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.background, padding: 24, borderTopWidth: 1, borderTopColor: Colors.border },
-  finalizeBtn: { backgroundColor: Colors.primary, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  finalizeBtnText: { color: Colors.background, fontSize: 15, fontWeight: '900', letterSpacing: 1 },
-  finalizeBtnDisabled: { backgroundColor: Colors.surfaceElevated, opacity: 0.5 }
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.background, padding: 24, borderTopWidth: 1, borderTopColor: theme.border },
+  finalizeBtn: { backgroundColor: theme.primary, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  finalizeBtnText: { color: '#FFF', fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  finalizeBtnDisabled: { backgroundColor: theme.surfaceElevated, opacity: 0.5 }
 });
 
 export default ItemVerificationScreen;
+

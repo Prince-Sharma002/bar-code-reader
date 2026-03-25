@@ -3,10 +3,26 @@ import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
+import { ThemeProvider, useTheme } from './src/constants/ThemeContext';
+
+/**
+ * Root of the application components.
+ * This is a sub-component to access theme context for status bar etc.
+ */
+function AppContent() {
+  const { isDarkMode } = useTheme();
+  
+  return (
+    <NavigationContainer>
+      <AppNavigator />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+    </NavigationContainer>
+  );
+}
 
 /**
  * Root of the application.
- * NavigationContainer wraps the entire navigation tree.
+ * ThemeProvider wraps the entire application.
  */
 export default function App() {
   useEffect(() => {
@@ -20,9 +36,9 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer>
-      <AppNavigator />
-      <StatusBar style="light" />
-    </NavigationContainer>
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
+

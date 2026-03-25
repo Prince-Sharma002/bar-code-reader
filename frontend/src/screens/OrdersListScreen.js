@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { getOrders } from '../services/apiService';
 import { useNavigation } from '@react-navigation/native';
-import Colors from '../constants/Colors';
+import { useTheme } from '../constants/ThemeContext';
 
 const STATUS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -14,12 +14,15 @@ const STATUS_FILTERS = [
 ];
 
 const OrdersListScreen = () => {
+  const { theme } = useTheme();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeStatus, setActiveStatus] = useState('all');
   const navigation = useNavigation();
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fetchOrders = async () => {
     try {
@@ -55,11 +58,11 @@ const OrdersListScreen = () => {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'packed': case 'delivered': case 'ready_to_ship': return Colors.order;
-      case 'pending': return Colors.duplicate;
-      case 'returned': return Colors.return;
-      case 'processing': return Colors.product;
-      default: return Colors.textMuted;
+      case 'packed': case 'delivered': case 'ready_to_ship': return theme.order;
+      case 'pending': return theme.duplicate;
+      case 'returned': return theme.return;
+      case 'processing': return theme.product;
+      default: return theme.textMuted;
     }
   };
 
@@ -89,7 +92,7 @@ const OrdersListScreen = () => {
   if (loading && !refreshing) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.primary} />
+        <ActivityIndicator color={theme.primary} />
       </View>
     );
   }
@@ -112,7 +115,7 @@ const OrdersListScreen = () => {
           <TextInput
             style={styles.searchInput}
             placeholder="Search by ID or name..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={theme.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -138,7 +141,7 @@ const OrdersListScreen = () => {
         keyExtractor={item => item._id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>◰</Text>
@@ -151,61 +154,62 @@ const OrdersListScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  centered: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  header: { paddingTop: 64, paddingHorizontal: 24, paddingBottom: 20 },
+const createStyles = (theme) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
+  centered: { flex: 1, backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' },
+  header: { paddingTop: 20, paddingHorizontal: 24, paddingBottom: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20 },
-  headerSub: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 1.5 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  headerSub: { fontSize: 10, fontWeight: '800', color: theme.textMuted, letterSpacing: 1.5 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: theme.text, marginTop: 4 },
   countBadge: { 
-    backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 6, 
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.border 
+    backgroundColor: theme.surface, paddingHorizontal: 12, paddingVertical: 6, 
+    borderRadius: 12, borderWidth: 1, borderColor: theme.border 
   },
-  countText: { color: Colors.primary, fontWeight: '800', fontSize: 13 },
+  countText: { color: theme.primary, fontWeight: '800', fontSize: 13 },
   
   searchBar: { 
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, 
+    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.surface, 
     borderRadius: 16, paddingHorizontal: 16, marginBottom: 16, height: 52, 
-    borderWidth: 1, borderColor: Colors.border 
+    borderWidth: 1, borderColor: theme.border 
   },
-  searchIcon: { fontSize: 18, marginRight: 10, color: Colors.textMuted },
-  searchInput: { flex: 1, color: Colors.text, fontSize: 14, fontWeight: '600' },
+  searchIcon: { fontSize: 18, marginRight: 10, color: theme.textMuted },
+  searchInput: { flex: 1, color: theme.text, fontSize: 14, fontWeight: '600' },
   
   filterBar: { marginBottom: 4 },
   chip: { 
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, 
-    backgroundColor: Colors.surface, marginRight: 10, borderWidth: 1, borderColor: Colors.border 
+    backgroundColor: theme.surface, marginRight: 10, borderWidth: 1, borderColor: theme.border 
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 13, fontWeight: '700' },
-  chipTextActive: { color: Colors.background },
+  chipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+  chipText: { color: theme.textSecondary, fontSize: 13, fontWeight: '700' },
+  chipTextActive: { color: '#FFF' },
 
   list: { padding: 24, paddingBottom: 100 },
   card: { 
-    backgroundColor: Colors.surface, borderRadius: 24, padding: 20, 
-    marginBottom: 16, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: theme.surface, borderRadius: 24, padding: 20, 
+    marginBottom: 16, borderWidth: 1, borderColor: theme.border,
     elevation: 2, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  orderNumber: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  orderNumber: { fontSize: 17, fontWeight: '800', color: theme.text },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1 },
   statusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  customerName: { fontSize: 15, color: Colors.textSecondary, fontWeight: '600', marginBottom: 16 },
+  customerName: { fontSize: 15, color: theme.textSecondary, fontWeight: '600', marginBottom: 16 },
   cardFooter: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 16 
+    borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 16 
   },
-  itemCount: { fontSize: 11, color: Colors.textMuted, fontWeight: '800', letterSpacing: 0.5 },
+  itemCount: { fontSize: 11, color: theme.textMuted, fontWeight: '800', letterSpacing: 0.5 },
   platform: { 
-    fontSize: 9, color: Colors.primary, fontWeight: '900', letterSpacing: 1,
-    backgroundColor: `${Colors.primary}10`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 
+    fontSize: 9, color: theme.primary, fontWeight: '900', letterSpacing: 1,
+    backgroundColor: `${theme.primary}10`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 
   },
   
   empty: { alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 40 },
-  emptyIcon: { fontSize: 64, color: Colors.border, marginBottom: 20 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  emptyIcon: { fontSize: 64, color: theme.border, marginBottom: 20 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: theme.text, marginBottom: 8 },
+  emptyText: { fontSize: 14, color: theme.textMuted, textAlign: 'center', lineHeight: 22 },
 });
 
 export default OrdersListScreen;
+
