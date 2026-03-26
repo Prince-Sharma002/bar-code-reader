@@ -58,12 +58,7 @@ const LoginScreen = ({ navigation }) => {
           )}
         </TouchableOpacity>
 
-        <View style={styles.footerRow}>
-          <Text style={{ color: theme.text }}>Don't have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-            <Text style={{ color: theme.primary, fontWeight: 'bold' }}>Sign up</Text>
-          </TouchableOpacity>
-        </View>
+
       </View>
     </SafeAreaView>
   );

@@ -12,7 +12,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import { useTheme } from '../constants/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
-import SignupScreen from '../screens/SignupScreen';
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -122,7 +122,7 @@ const AppNavigator = () => {
       ) : (
         <>
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
+          
         </>
       )}
     </Stack.Navigator>

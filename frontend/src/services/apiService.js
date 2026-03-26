@@ -57,10 +57,7 @@ export const authLogin = async (email, password) => {
   return res.data;
 };
 
-export const authSignup = async (userData) => {
-  const res = await apiClient.post('/auth/signup', userData);
-  return res.data;
-};
+
 
 export const getProfile = async () => {
   const res = await apiClient.get('/auth/profile');

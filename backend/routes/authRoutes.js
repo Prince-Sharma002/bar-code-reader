@@ -3,7 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 
 // Signup - Create new store owner
-router.post('/signup', authController.signup);
+
 
 // Invite - Create staff account
 router.post('/invite', authController.inviteStaff);

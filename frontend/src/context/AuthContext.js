@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authLogin, authSignup } from '../services/apiService';
+import { authLogin } from '../services/apiService';
 
 export const AuthContext = createContext();
 
@@ -49,28 +49,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (userData) => {
-    setLoading(true);
-    try {
-      const data = await authSignup(userData);
-      
-      // If the backend returns tokens immediately upon signup, log them in
-      if (data.accessToken) {
-        await AsyncStorage.setItem('@access_token', data.accessToken);
-        await AsyncStorage.setItem('@refresh_token', data.refreshToken);
-        await AsyncStorage.setItem('@user_data', JSON.stringify(data.user));
-        setToken(data.accessToken);
-        setUser(data.user);
-      }
-      
-      return { success: true, data };
-    } catch (err) {
-      console.error(err);
-      return { success: false, error: err.response?.data?.error || 'Signup failed' };
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   const logout = async () => {
     setLoading(true);
@@ -83,7 +62,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
